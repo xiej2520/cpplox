@@ -1,0 +1,17 @@
+[
+  {
+    "arguments": [
+      "/usr/bin/g++",
+      "-Iinclude",
+      "-std=c++20",
+      "-Wall",
+      "-c",
+      "-o",
+      "obj/treelox.o",
+      "src/treelox.cpp"
+    ],
+    "directory": "/home/xiej/Documents/ProgrammingLocal/treelox",
+    "file": "/home/xiej/Documents/ProgrammingLocal/treelox/src/treelox.cpp",
+    "output": "/home/xiej/Documents/ProgrammingLocal/treelox/obj/treelox.o"
+  }
+]

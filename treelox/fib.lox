@@ -1,0 +1,30 @@
+var a = 0;
+var temp;
+
+for (var b = 1; a < 10000; b = temp + b) {
+	print a;
+	temp = a;
+	a = b;
+}
+
+var a = "Race";
+var b = "car";
+
+print a + b;
+
+if (true) {
+	print "true";
+}
+
+if (1) {
+	print "one true!";
+}
+else {
+	print "one false!";
+}
+
+var c = 1;
+for (var i=0; i<=20; i = i + 1) {
+	print c;
+	c = c * 2;
+}

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "lox_object.h"
 #include "token.h"
 #include <memory>
 #include <variant>
@@ -50,8 +51,8 @@ struct Grouping {
 };
 
 struct Literal {
-	const LiteralVar value;
-	Literal(LiteralVar value): value(value) {}
+	const LoxObject value;
+	Literal(LoxObject value): value(value) {}
 };
 
 struct Logical {
@@ -78,13 +79,3 @@ struct Call {
 	const std::vector<Expr> arguments;
 	Call(std::shared_ptr<Expr> callee, Token paren, std::vector<Expr> arguments): callee(callee), paren(paren), arguments(arguments) {}
 };
-
-struct TreeLoxFunction {
-
-};
-
-struct TreeLoxClass {
-
-};
-
-using ExprEvalRes = std::variant<LiteralVar, TreeLoxFunction, TreeLoxClass>;

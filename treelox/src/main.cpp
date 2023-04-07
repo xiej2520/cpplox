@@ -2,7 +2,7 @@
 
 #include "astprinter.h"
 #include "scanner.h"
-#include "treelox.h"
+#include "lox.h"
 
 void testASTPrint() {
 	Expr a = Literal(3);
@@ -31,14 +31,14 @@ int main(int argc, char *argv[]) {
 	//testASTPrint();
 
 	if (args.size() > 2) {
-		std::cout << "Usage: treelox [script]\n";
+		std::cout << "Usage: lox [script]\n";
 		return 0;
 	}
 	else if (args.size() == 2) {
-		TreeLox::runFile(argv[1]);
+		Lox::runFile(argv[1]);
 	}
 	else {
-		TreeLox::runPrompt();
+		Lox::runPrompt();
 	}
 
 	return 0;

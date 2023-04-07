@@ -9,7 +9,7 @@ bool Scanner::isAtEnd() {
 char Scanner::advance() {
 	return src[current++];
 }
-void Scanner::addToken(TokenType type, LiteralVar literal) {
+void Scanner::addToken(TokenType type, LoxObject literal) {
 	std::string text = src.substr(start, current - start);
 	tokens.emplace_back(type, text, literal, line);
 }
@@ -39,7 +39,7 @@ void Scanner::read_string() {
 		advance();
 	}
 	if (isAtEnd()) {
-		TreeLox::error(line, "Unterminated string.");
+		Lox::error(line, "Unterminated string.");
 		return;
 	}
 	advance(); // closing ""
@@ -104,7 +104,7 @@ void Scanner::scanToken() {
 				read_identifier();
 			}
 			else {
-				TreeLox::error(line, "Unexpected character.");
+				Lox::error(line, "Unexpected character.");
 			}
 			break;
 	}

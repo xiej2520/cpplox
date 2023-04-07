@@ -4,7 +4,7 @@
 #include <vector>
 #include <unordered_map>
 
-#include "treelox.h"
+#include "lox.h"
 #include "token.h"
 
 class Scanner {
@@ -16,7 +16,7 @@ class Scanner {
 	std::unordered_map<std::string, TokenType> keywords;
 	bool isAtEnd();
 	char advance();
-	void addToken(TokenType type, LiteralVar literal);
+	void addToken(TokenType type, LoxObject literal);
 	void addToken(TokenType type);
 	bool match(char expected);
 	char peek();

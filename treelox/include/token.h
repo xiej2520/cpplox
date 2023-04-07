@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory>
 #include <string>
 #include <variant>
 
@@ -98,24 +99,23 @@ constexpr std::string to_string(TokenType t) {
 	}
 }
 
-// monostate for "null" literal
-using LiteralVar = std::variant<std::monostate, int, double, bool, std::string>;
 
-struct LiteralToString {
-	std::string operator()(std::monostate m) const { return "nil"; }
-	std::string operator()(int i) const { return std::to_string(i); }
-	std::string operator()(double d) const { return std::to_string(d); }
-	std::string operator()(bool b) const { return b ? "true" : "false"; }
-	std::string operator()(const std::string &s) const { return "\"" + s + "\""; }
-};
+struct LoxFunction;
+
+using LoxObject = std::variant<std::monostate, int, double, bool, std::string,
+	std::shared_ptr<LoxFunction>
+// LoxClass
+// NativeFunction
+// LoxInstance
+>;
 
 // no const members because it deletes copy/move constructor
 class Token {
 public:
 	const TokenType type;
 	const std::string lexeme;
-	const LiteralVar literal;
+	const LoxObject literal;
 	const int line;
-	Token(TokenType t, std::string lex, LiteralVar lit, int line);
-	std::string repr();
+	Token(TokenType t, std::string lex, LoxObject lit, int line);
+	std::string repr() const;
 };

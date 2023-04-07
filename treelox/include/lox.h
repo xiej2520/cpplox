@@ -13,7 +13,7 @@
 // circular dependency without
 class RuntimeError;
 
-namespace TreeLox {
+namespace Lox {
 	extern bool hadError;
 	extern bool hadRuntimeError;
 

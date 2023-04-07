@@ -8,7 +8,7 @@ Environment::Environment(Environment &enclosing) {
 	parent = &enclosing;
 }
 
-void Environment::define(const std::string &name, LiteralVar value) {
+void Environment::define(const std::string &name, LoxObject value) {
 	values[name] = value;
 }
 
@@ -16,7 +16,7 @@ void Environment::define_uninitialized(const std::string &name) {
 	uninitialized_values.insert(name);
 }
 
-LiteralVar Environment::get(Token name) {
+LoxObject Environment::get(Token name) {
 	if (values.contains(name.lexeme)) {
 		return values[name.lexeme];
 	}
@@ -31,7 +31,7 @@ LiteralVar Environment::get(Token name) {
 	throw RuntimeError(name, errMsg);
 }
 
-void Environment::assign(Token name, LiteralVar value) {
+void Environment::assign(Token name, LoxObject value) {
 	if (values.contains(name.lexeme)) {
 		values[name.lexeme] = value;
 	}

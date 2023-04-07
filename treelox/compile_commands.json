@@ -7,11 +7,11 @@
       "-Wall",
       "-c",
       "-o",
-      "obj/treelox.o",
-      "src/treelox.cpp"
+      "obj/lox.o",
+      "src/lox.cpp"
     ],
-    "directory": "/home/xiej/Documents/ProgrammingLocal/treelox",
-    "file": "/home/xiej/Documents/ProgrammingLocal/treelox/src/treelox.cpp",
-    "output": "/home/xiej/Documents/ProgrammingLocal/treelox/obj/treelox.o"
+    "directory": "/home/xiej/Documents/ProgrammingLocal/lox",
+    "file": "/home/xiej/Documents/ProgrammingLocal/lox/src/lox.cpp",
+    "output": "/home/xiej/Documents/ProgrammingLocal/lox/obj/lox.o"
   }
 ]

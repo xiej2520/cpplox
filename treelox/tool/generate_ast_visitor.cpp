@@ -105,7 +105,7 @@ int main(int argc, char **argv) {
 	defineAst("Expr", {
 		"Binary : Expr left, Token op, Expr right",
 		"Grouping: Expr expression",
-		"Literal : LiteralVar value",
+		"Literal : LoxObject value",
 		"Unary : Token op, Expr right"
 	});
 }

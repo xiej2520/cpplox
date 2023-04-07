@@ -1,6 +1,7 @@
 #pragma once
 #include <exception>
-#include "expr.h"
+
+#include "token.h"
 
 // Lox runtime error, identical to std::runtime_error besides token
 class RuntimeError : std::exception {

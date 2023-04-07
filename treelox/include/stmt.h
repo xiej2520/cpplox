@@ -8,6 +8,7 @@
 
 struct Block;
 struct Expression;
+struct Function;
 struct If;
 struct Print;
 struct Var;
@@ -18,6 +19,7 @@ using Stmt = std::variant
 	std::monostate,
 	Block,
 	Expression,
+	Function,
 	If,
 	Print,
 	Var,
@@ -54,6 +56,13 @@ struct While {
 	While(Expr condition, std::shared_ptr<Stmt> body): condition(condition), body(body) {}
 };
 
+
+struct Function {
+	const Token name;
+	const std::vector<Token> params;
+	const std::vector<Stmt> body;
+	Function(Token name, std::vector<Token> params, std::vector<Stmt> body): name(name), params(params), body(body) {}
+};
 // Block comes last to shut up clang
 struct Block {
 	const std::vector<Stmt> statements;

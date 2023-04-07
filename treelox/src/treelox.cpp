@@ -1,8 +1,8 @@
-#include "treelox.h"
+#include "lox.h"
 
 using enum TokenType;
 
-namespace TreeLox {
+namespace Lox {
 	bool hadError = false;
 	bool hadRuntimeError = false;
 	Interpreter interpreter;

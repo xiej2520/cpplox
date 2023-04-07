@@ -15,7 +15,7 @@ Expr Parser::assignment() {
 			Token name = std::get<Variable>(expr).name;
 			return Assign(name, std::make_shared<Expr>(value));
 		}
-		TreeLox::error(equals, "Invalid assignment target.");
+		Lox::error(equals, "Invalid assignment target.");
 	}
 	return expr;
 }
@@ -194,7 +194,7 @@ Token Parser::consume(TokenType type, std::string message) {
 }
 
 Parser::ParseError Parser::error(Token token, std::string message) {
-	TreeLox::error(token, message);
+	Lox::error(token, message);
 	return ParseError{};
 }
 
@@ -299,8 +299,27 @@ Stmt Parser::expressionStatement() {
 	return Expression(expr);
 }
 
+Function Parser::function(std::string kind) {
+	Token name = consume(IDENTIFIER, "Expect " + kind + " name.");
+	consume(LEFT_PAREN, "Expect '(' after " + kind + " name.");
+	std::vector<Token> parameters;
+	if (!check(RIGHT_PAREN)) {
+		do {
+			// allow any number of parameters
+			parameters.push_back(
+				consume(IDENTIFIER, "Expect parameter name.")
+			);
+		} while (match(COMMA));
+	}
+	consume(RIGHT_PAREN, "Expect ')' after parameters.");
+	consume(LEFT_BRACE, "Expect '{' before " + kind + " body.");
+	std::vector<Stmt> body = block();
+	return Function(name, parameters, body);
+}
+
 Stmt Parser::declaration() {
 	try {
+		if (match(FUN)) return function("function");
 		if (match(VAR)) return varDeclaration();
 		return statement();
 	}

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <vector>
-#include "treelox.h"
+#include "lox.h"
 #include "expr.h"
 #include "stmt.h"
 #include "token.h"
@@ -59,6 +59,7 @@ class Parser {
 	Stmt forStatement();
 	Stmt printStatement();
 	Stmt expressionStatement();
+	Function function(std::string kind);
 	Stmt declaration();
 	Stmt varDeclaration();
 

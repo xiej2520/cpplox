@@ -1,31 +1,29 @@
 #pragma once
 
+#include <chrono>
 #include <iostream>
 #include <variant>
 #include "token.h"
 #include "expr.h"
 #include "stmt.h"
-#include "treelox.h"
+#include "lox.h"
+#include "lox_object.h"
 #include "environment.h"
 #include "runtime_error.h"
 
 class Interpreter {
-	struct TreeLoxCallable {
-		LiteralVar call(Interpreter &it, std::vector<Expr> arguments);
-	};
+	const std::shared_ptr<Environment> globals;
 	std::shared_ptr<Environment> environment;
 
-	// takes in an Expr, evaluates it down to final LiteralVar
-	LiteralVar evaluate(Expr expr);
+	// takes in an Expr, evaluates it down to LoxObject
+	LoxObject evaluate(Expr expr);
 	
-	TreeLoxCallable getCallable(LiteralVar callee);
-
-	bool is_equal(LiteralVar a, LiteralVar b);
+	bool is_equal(LoxObject a, LoxObject b);
 	// only true value is bool true, everything else is false
-	bool is_truthy(LiteralVar literal);
+	bool is_truthy(LoxObject obj);
 
-	void check_num_operand(Token op, LiteralVar operand);
-	void check_num_operands(Token op, LiteralVar left, LiteralVar right);
+	void check_num_operand(Token op, LoxObject operand);
+	void check_num_operands(Token op, LoxObject left, LoxObject right);
 	
 	void execute(const Stmt &stmt);
 	void execute_block(const std::vector<Stmt> &statements, Environment environment);
@@ -33,7 +31,7 @@ class Interpreter {
 public:
 	/* Constructor requires an Interpreter argument
 	 * Use with std::visit
-	 * takes a Expr expr argument, evaluates and returns final LiteralVar
+	 * takes a Expr expr argument, evaluates and returns final LoxObject
 	 */
 	struct EvaluateExpr;
 	/* Constructor requires an Interpreter argument

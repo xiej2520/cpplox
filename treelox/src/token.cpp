@@ -1,9 +1,10 @@
 #include "token.h"
 
-Token::Token(TokenType t, std::string lex, LiteralVar lit, int line):
+Token::Token(TokenType t, std::string lex, LoxObject lit, int line):
 		type(t), lexeme(lex), literal(lit), line(line) { }
 
-std::string Token::repr() {
-	return to_string(type) + " " + lexeme + " " +
-		std::visit(LiteralToString(), literal);
+std::string to_string(const LoxObject &o);
+
+std::string Token::repr() const {
+	return to_string(type) + " " + lexeme + " " + to_string(literal);
 }

@@ -91,7 +91,7 @@ int main(int argc, char **argv) {
 		"Binary := std::shared_ptr<Expr> left, Token op, std::shared_ptr<Expr> right",
 		"Call := std::shared_ptr<Expr> callee, Token paren, std::vector<Expr> arguments",
 		"Grouping := std::shared_ptr<Expr> expression",
-		"Literal := LiteralVar value",
+		"Literal := LoxObject value",
 		"Logical := std::shared_ptr<Expr> left, Token op, std::shared_ptr<Expr> right",
 		"Unary := Token op, std::shared_ptr<Expr> right",
 		"Variable := Token name"

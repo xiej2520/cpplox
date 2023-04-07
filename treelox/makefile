@@ -3,7 +3,7 @@ SRC_DIR := ./src
 OBJ_DIR := ./obj
 BIN_DIR := ./bin
 
-EXE := $(BIN_DIR)/treelox
+EXE := $(BIN_DIR)/lox
 
 SRC := $(wildcard $(SRC_DIR)/*.cpp)
 OBJ := $(SRC:$(SRC_DIR)/%.cpp=$(OBJ_DIR)/%.o)

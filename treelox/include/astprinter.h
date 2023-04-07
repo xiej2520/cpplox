@@ -3,6 +3,7 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include "lox_object.h"
 #include "token.h"
 #include "expr.h"
 #include "stmt.h"
@@ -16,14 +17,14 @@ struct ExprToString {
 		return "";
 	}
 	std::string operator()(const Assign &expr) {
-		return expr.name.lexeme + " = " + std::visit(LiteralToString(), expr.name.literal);		
+		return expr.name.lexeme + " = " + to_string(expr.name.literal);		
 	}
 	std::string operator()(const Binary &expr) {
 		return parenthesize(expr.op.lexeme, {*expr.left, *expr.right});
 	}
 	std::string operator()(const Call &expr) {
 		std::string res = std::visit(ExprToString(), *expr.callee) + "(";
-		for (int i=0; i<expr.arguments.size()-1; i++) {
+		for (size_t i=0; i<expr.arguments.size()-1; i++) {
 			res += std::visit(ExprToString(), expr.arguments[i]) + ", ";
 		}
 		if (!expr.arguments.empty()) {
@@ -36,7 +37,7 @@ struct ExprToString {
 	}
 	std::string operator()(const Literal &expr) {
 		if (std::holds_alternative<std::monostate>(expr.value)) return "nil";
-		return std::visit(LiteralToString(), expr.value);
+		return to_string(expr.value);
 	}
 	std::string operator()(const Logical &expr) {
 		return parenthesize(expr.op.lexeme, {*expr.left, *expr.right});
@@ -45,7 +46,7 @@ struct ExprToString {
 		return parenthesize(expr.op.lexeme, {*expr.right});
 	}
 	std::string operator()(const Variable &expr) {
-		return "var " + expr.name.lexeme + " = " + std::visit(LiteralToString(), expr.name.literal);
+		return "var " + expr.name.lexeme + " = " + to_string(expr.name.literal);
 	}
 };
 
@@ -64,6 +65,9 @@ struct StmtToString {
 	}
 	std::string operator()(const Expression &stmt) {
 		return "Expression: " + std::visit(ExprToString(), stmt.expression);
+	}
+	std::string operator()(const Function &stmt) {
+		return "Function: " + stmt.name.repr();
 	}
 	std::string operator()(const If &stmt) {
 		return "If " + std::visit(ExprToString(), stmt.condition) + " then\n"
@@ -93,7 +97,7 @@ static std::string parenthesize(const std::string &name, const std::vector<Expr>
 	return s;
 }
 
-// inline to restrict to header only
+// inline to allow header definition
 inline std::string print(const Expr &expr) {
 	return std::visit(ExprToString(), expr);
 }

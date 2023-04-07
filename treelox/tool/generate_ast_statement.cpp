@@ -88,6 +88,7 @@ int main(int argc, char **argv) {
 	defineAst("stmt", {
 		"Block := std::vector<Stmt> statements",
 		"Expression := Expr expression",
+		"Function := Token name, std::vector<Token> params, std::vector<Stmt> body",
 		"If := Expr condition, std::shared_ptr<Stmt> thenBranch, std::shared_ptr<Stmt> elseBranch",
 		"Print := Expr expression",
 		"Var := Token name, Expr initializer",

@@ -1,5 +1,9 @@
 #include "interpreter.h"
-#include "stmt.h"
+
+using std::holds_alternative;
+using std::get;
+using std::make_shared;
+using std::shared_ptr;
 
 using enum TokenType;
 
@@ -7,21 +11,21 @@ struct Interpreter::EvaluateExpr {
 	Interpreter &it;
 	EvaluateExpr(Interpreter &it): it(it) {}
 
-	LiteralVar operator()(std::monostate m) {
+	LoxObject operator()(std::monostate m) {
 		return std::monostate{};
 	}
-	LiteralVar operator()(Literal expr) {
+	LoxObject operator()(Literal expr) {
 		return expr.value;
 	}
-	LiteralVar operator()(Grouping expr) {
+	LoxObject operator()(Grouping expr) {
 		return it.evaluate(*expr.expression);
 	}
-	LiteralVar operator()(Unary expr) {
-		LiteralVar right = it.evaluate(*expr.right);
+	LoxObject operator()(Unary expr) {
+		LoxObject right = it.evaluate(*expr.right);
 		switch (expr.op.type) {
 			case MINUS:
 				it.check_num_operand(expr.op, right);
-				return -std::get<double>(right);
+				return -get<double>(right);
 			case BANG:
 				return !it.is_truthy(right);
 			default:
@@ -29,48 +33,48 @@ struct Interpreter::EvaluateExpr {
 		}
 		return std::monostate{}; // unreachable
 	}
-	LiteralVar operator()(Assign expr) {
-		LiteralVar value = it.evaluate(expr.value);
+	LoxObject operator()(Assign expr) {
+		LoxObject value = it.evaluate(expr.value);
 		it.environment->assign(expr.name, value);
 		return value;
 	}
-	LiteralVar operator()(Binary expr) {
-		LiteralVar left = it.evaluate(*expr.left);
-		LiteralVar right = it.evaluate(*expr.right);
+	LoxObject operator()(Binary expr) {
+		LoxObject left = it.evaluate(*expr.left);
+		LoxObject right = it.evaluate(*expr.right);
 		switch (expr.op.type) {
 			case PLUS:
-				if (std::holds_alternative<double>(left) && std::holds_alternative<double>(right)) {
-					return std::get<double>(left) + std::get<double>(right);
+				if (holds_alternative<double>(left) && holds_alternative<double>(right)) {
+					return get<double>(left) + std::get<double>(right);
 				}
-				if (std::holds_alternative<std::string>(left) && std::holds_alternative<std::string>(right)) {
-					return std::get<std::string>(left) + std::get<std::string>(right);
+				if (holds_alternative<std::string>(left) && holds_alternative<std::string>(right)) {
+					return get<std::string>(left) + std::get<std::string>(right);
 				}
 				throw RuntimeError(expr.op, "Operands must be two numbers or two strings.");
 			case MINUS:
 				it.check_num_operands(expr.op, left, right);
-				return std::get<double>(left) - std::get<double>(right);
+				return get<double>(left) - std::get<double>(right);
 			case SLASH:
 				it.check_num_operands(expr.op, left, right);
-				if (std::get<double>(right) == 0.0) {
+				if (get<double>(right) == 0.0) {
 					throw RuntimeError(expr.op, "Division by zero error.");
 				}
-				return std::get<double>(left) / std::get<double>(right);
+				return get<double>(left) / std::get<double>(right);
 			case STAR:
 				it.check_num_operands(expr.op, left, right);
-				return std::get<double>(left) * std::get<double>(right);
+				return get<double>(left) * std::get<double>(right);
 				// NO TYPE COERCION
 			case GREATER:
 				it.check_num_operands(expr.op, left, right);
-				return std::get<double>(left) > std::get<double>(right);
+				return get<double>(left) > std::get<double>(right);
 			case GREATER_EQUAL:
 				it.check_num_operands(expr.op, left, right);
-				return std::get<double>(left) >= std::get<double>(right);
+				return get<double>(left) >= std::get<double>(right);
 			case LESS:
 				it.check_num_operands(expr.op, left, right);
-				return std::get<double>(left) < std::get<double>(right);
+				return get<double>(left) < std::get<double>(right);
 			case LESS_EQUAL:
 				it.check_num_operands(expr.op, left, right);
-				return std::get<double>(left) <= std::get<double>(right);
+				return get<double>(left) <= std::get<double>(right);
 			case BANG_EQUAL:
 				return !it.is_equal(left, right);
 			case EQUAL_EQUAL:
@@ -80,17 +84,24 @@ struct Interpreter::EvaluateExpr {
 		}
 		return std::monostate{};
 	}
-	LiteralVar operator()(Call expr) {
-		LiteralVar callee = it.evaluate(*expr.callee);
-		std::vector<LiteralVar> arguments;
+	LoxObject operator()(Call expr) {
+		LoxObject callee = it.evaluate(*expr.callee);
+		std::vector<LoxObject> arguments;
 		for (Expr argument : expr.arguments) {
 			arguments.push_back(it.evaluate(argument));
 		}
-		TreeLoxCallable function = getCallable(callee);
-		return function.call(it, arguments);
+		if (!holds_alternative<shared_ptr<LoxFunction>>(callee)) {
+			throw RuntimeError(expr.paren, "Can only call functions and classes.");
+		}
+		if (arguments.size() != get<shared_ptr<LoxFunction>>(callee)->arity) {
+			std::string msg = "Expected " + to_string(static_cast<int>(get<shared_ptr<LoxFunction>>(callee)->arity))
+			+ " arguments but got " + to_string(static_cast<int>(arguments.size())) + ".";
+			throw RuntimeError(expr.paren, msg);
+		}
+		return get<shared_ptr<LoxFunction>>(callee)->operator()(it, arguments);
 	}
-	LiteralVar operator()(Logical expr) {
-		LiteralVar left = it.evaluate(expr.left);
+	LoxObject operator()(Logical expr) {
+		LoxObject left = it.evaluate(expr.left);
 		if (expr.op.type == OR) {
 			// short circuit
 			if (it.is_truthy(left)) return left;
@@ -100,7 +111,7 @@ struct Interpreter::EvaluateExpr {
 		}
 		return it.evaluate(expr.right);
 	}
-	LiteralVar operator()(Variable expr) {
+	LoxObject operator()(Variable expr) {
 		return it.environment->get(expr.name);
 	}
 };
@@ -116,17 +127,20 @@ struct Interpreter::EvaluateStmt {
 	void operator()(Expression stmt) {
 		it.evaluate(stmt.expression);
 	}
+	void operator()(Function stmt) {
+		
+	}
 	void operator()(If stmt) {
 		if (it.is_truthy(it.evaluate(stmt.condition))) {
 			it.execute(*stmt.thenBranch);
 		}
-		else if (!std::holds_alternative<std::monostate>(*stmt.elseBranch)) {
+		else if (!holds_alternative<std::monostate>(*stmt.elseBranch)) {
 			it.execute(*stmt.elseBranch);
 		}
 	}
 	void operator()(Print stmt) {
-		LiteralVar value = it.evaluate(stmt.expression);
-		std::cout << std::visit(LiteralToString(), value) << "\n";
+		LoxObject value = it.evaluate(stmt.expression);
+		std::cout << std::visit(LoxObjToString(), value) << "\n";
 	}
 	void operator()(Var stmt) {
 		if (stmt.initializer.has_value()) {
@@ -143,30 +157,35 @@ struct Interpreter::EvaluateStmt {
 	}
 };
 
-Interpreter::Interpreter(): environment(std::make_shared<Environment>()) { }
+Interpreter::Interpreter(): globals(make_shared<Environment>()) {
+	environment = globals;
+	globals->define("clock", make_shared<LoxFunction>(0, [](Interpreter &it, const std::vector<LoxObject> &args) {
+		return static_cast<double>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count());
+	}));
+}
 
-LiteralVar Interpreter::evaluate(Expr expr) {
+LoxObject Interpreter::evaluate(Expr expr) {
 	return std::visit(EvaluateExpr(*this), expr);
 }
 
-bool Interpreter::is_equal(LiteralVar a, LiteralVar b) {
+bool Interpreter::is_equal(LoxObject a, LoxObject b) {
 	return a == b;
 }
 
-bool Interpreter::is_truthy(LiteralVar literal) {
-	if (std::holds_alternative<bool>(literal)) {
-		return std::get<bool>(literal);
+bool Interpreter::is_truthy(LoxObject obj) {
+	if (holds_alternative<bool>(obj)) {
+		return get<bool>(obj);
 	}
 	return false;
 }
 
-void Interpreter::check_num_operand(Token op, LiteralVar operand) {
-	if (std::holds_alternative<double>(operand)) return;
+void Interpreter::check_num_operand(Token op, LoxObject operand) {
+	if (holds_alternative<double>(operand)) return;
 	throw RuntimeError(op, "Operand must be a number.");
 }
 
-void Interpreter::check_num_operands(Token op, LiteralVar left, LiteralVar right) {
-	if (std::holds_alternative<double>(left) && std::holds_alternative<double>(right)) return;
+void Interpreter::check_num_operands(Token op, LoxObject left, LoxObject right) {
+	if (holds_alternative<double>(left) && holds_alternative<double>(right)) return;
 	throw RuntimeError(op, "Operands must be a numbers.");
 }
 
@@ -177,7 +196,7 @@ void Interpreter::execute(const Stmt &stmt) {
 void Interpreter::execute_block(const std::vector<Stmt> &statements, Environment new_env) {
 	auto prev_env = this->environment;
 	try {
-		this->environment = std::make_shared<Environment>(new_env);
+		this->environment = make_shared<Environment>(new_env);
 		for (const Stmt &statement : statements) {
 			execute(statement);
 		}
@@ -194,7 +213,7 @@ void Interpreter::interpret(const std::vector<Stmt> &statements) {
 		}
 	}
 	catch (RuntimeError &err) {
-		TreeLox::runtime_error(err);
+		Lox::runtime_error(err);
 	}
 }
 
@@ -202,9 +221,9 @@ void Interpreter::interpret(const std::vector<Stmt> &statements) {
 void Interpreter::repl_interpret(const std::vector<Stmt> &statements) {
 	try {
 		for (const Stmt &statement : statements) {
-			if (std::holds_alternative<Expression>(statement)) {
-				LiteralVar value = evaluate(std::get<Expression>(statement).expression);
-				std::cout << std::visit(LiteralToString(), value) << "\n";
+			if (holds_alternative<Expression>(statement)) {
+				LoxObject value = evaluate(get<Expression>(statement).expression);
+				std::cout << to_string(value) << "\n";
 			}
 			else {
 				execute(statement);
@@ -212,7 +231,7 @@ void Interpreter::repl_interpret(const std::vector<Stmt> &statements) {
 		}
 	}
 	catch (RuntimeError &err) {
-		TreeLox::runtime_error(err);
+		Lox::runtime_error(err);
 	}
 }
 

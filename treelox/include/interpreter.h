@@ -1,8 +1,11 @@
 #pragma once
 
 #include <chrono>
+#include <functional>
 #include <iostream>
 #include <variant>
+#include <vector>
+
 #include "token.h"
 #include "expr.h"
 #include "stmt.h"

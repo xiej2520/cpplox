@@ -1,9 +1,10 @@
 #include "interpreter.h"
 
-using std::holds_alternative;
-using std::get;
 using std::make_shared;
 using std::shared_ptr;
+using std::holds_alternative;
+using std::get;
+using std::vector;
 
 using enum TokenType;
 
@@ -90,15 +91,15 @@ struct Interpreter::EvaluateExpr {
 		for (Expr argument : expr.arguments) {
 			arguments.push_back(it.evaluate(argument));
 		}
-		if (!holds_alternative<shared_ptr<LoxFunction>>(callee)) {
+		if (!holds_alternative<LoxFunction>(callee)) {
 			throw RuntimeError(expr.paren, "Can only call functions and classes.");
 		}
-		if (arguments.size() != get<shared_ptr<LoxFunction>>(callee)->arity) {
-			std::string msg = "Expected " + to_string(static_cast<int>(get<shared_ptr<LoxFunction>>(callee)->arity))
+		if (arguments.size() != get<LoxFunction>(callee).arity) {
+			std::string msg = "Expected " + to_string(static_cast<int>(get<LoxFunction>(callee).arity))
 			+ " arguments but got " + to_string(static_cast<int>(arguments.size())) + ".";
 			throw RuntimeError(expr.paren, msg);
 		}
-		return get<shared_ptr<LoxFunction>>(callee)->operator()(it, arguments);
+		return get<LoxFunction>(callee).operator()(it, arguments);
 	}
 	LoxObject operator()(Logical expr) {
 		LoxObject left = it.evaluate(expr.left);
@@ -128,7 +129,14 @@ struct Interpreter::EvaluateStmt {
 		it.evaluate(stmt.expression);
 	}
 	void operator()(Function stmt) {
-		
+		auto fn = [stmt](Interpreter &it, vector<LoxObject> args) -> LoxObject {
+			Environment env = Environment(*it.globals);
+			for (int i=0; i < stmt.params.size(); i++) {
+				env.define(stmt.params[i].lexeme, args[i]);
+			}
+			it.execute_block(stmt.body, env);
+			return std::monostate{};
+		};
 	}
 	void operator()(If stmt) {
 		if (it.is_truthy(it.evaluate(stmt.condition))) {
@@ -159,7 +167,12 @@ struct Interpreter::EvaluateStmt {
 
 Interpreter::Interpreter(): globals(make_shared<Environment>()) {
 	environment = globals;
+	/*
 	globals->define("clock", make_shared<LoxFunction>(0, [](Interpreter &it, const std::vector<LoxObject> &args) {
+		return static_cast<double>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count());
+	}));
+	*/
+	globals->define("clock", NativeFunction(0, [](Interpreter &it, const std::vector<LoxObject> &args) {
 		return static_cast<double>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count());
 	}));
 }

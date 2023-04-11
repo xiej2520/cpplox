@@ -1,6 +1,7 @@
 #include "parser.h"
 
 using enum TokenType;
+using std::make_shared;
 
 Parser::Parser(const std::vector<Token> &tokens): tokens(tokens) {}
 
@@ -13,7 +14,7 @@ Expr Parser::assignment() {
 		
 		if (std::holds_alternative<Variable>(expr)) {
 			Token name = std::get<Variable>(expr).name;
-			return Assign(name, std::make_shared<Expr>(value));
+			return Assign(name, make_shared<Expr>(value));
 		}
 		Lox::error(equals, "Invalid assignment target.");
 	}
@@ -37,8 +38,8 @@ Expr Parser::equality() {
 	Expr expr = comparison();
 	while (match({BANG_EQUAL, EQUAL_EQUAL})) {
 		Token op = previous();
-		auto right = std::make_shared<Expr>(comparison());
-		expr.emplace<Binary>(std::make_shared<Expr>(expr), op, right);
+		auto right = make_shared<Expr>(comparison());
+		expr.emplace<Binary>(make_shared<Expr>(expr), op, right);
 	}
 	return expr;
 }
@@ -47,8 +48,8 @@ Expr Parser::and_expr() {
 	Expr expr = equality();
 	while (match(AND)) {
 		Token op = previous();
-		auto right = std::make_shared<Expr>(equality());
-		expr.emplace<Logical>(std::make_shared<Expr>(expr), op, right);
+		auto right = make_shared<Expr>(equality());
+		expr.emplace<Logical>(make_shared<Expr>(expr), op, right);
 	}
 	return expr;
 }
@@ -57,8 +58,8 @@ Expr Parser::or_expr() {
 	Expr expr = and_expr();
 	while (match(OR)) {
 		Token op = previous();
-		auto right = std::make_shared<Expr>(and_expr());
-		expr.emplace<Logical>(std::make_shared<Expr>(expr), op, right);
+		auto right = make_shared<Expr>(and_expr());
+		expr.emplace<Logical>(make_shared<Expr>(expr), op, right);
 	}
 	return expr;
 }
@@ -143,7 +144,7 @@ Expr Parser::unary() {
 }
 
 Expr Parser::call() {
-	auto expr = std::make_shared<Expr>(primary());
+	auto expr = make_shared<Expr>(primary());
 	while (true) {
 		if (match(LEFT_PAREN)) {
 			return finishCall(expr);
@@ -241,7 +242,7 @@ Stmt Parser::ifStatement() {
 	Expr condition = expression();
 	consume(RIGHT_PAREN, "Expect ')' after if condition.");
 	
-	auto thenBranch = std::make_shared<Stmt>(statement());
+	auto thenBranch = make_shared<Stmt>(statement());
 	auto elseBranch = make_shared<Stmt>(std::monostate{});
 	if (match(ELSE)) {
 		elseBranch = make_shared<Stmt>(statement());
@@ -253,7 +254,7 @@ Stmt Parser::whileStatement() {
 	consume(LEFT_PAREN, "Expect '(' after 'while'.");
 	Expr condition = expression();
 	consume(RIGHT_PAREN, "Expect ')' after condition.");
-	auto body = std::make_shared<Stmt>(statement());
+	auto body = make_shared<Stmt>(statement());
 	return While(condition, body);
 }
 
@@ -271,20 +272,20 @@ Stmt Parser::forStatement() {
 	// has both initializer and increment
 	if (!std::holds_alternative<std::monostate>(initializer) &&
 		!std::holds_alternative<std::monostate>(increment)) {
-		return Block({initializer, While(condition, std::make_shared<Stmt>(
+		return Block({initializer, While(condition, make_shared<Stmt>(
 			Block({statement(), Expression(increment)}))
 		)});
 	}
 	// initializer is empty
 	else if (!std::holds_alternative<std::monostate>(increment)) {
-		return While(condition, std::make_shared<Stmt>(Block({statement(), Expression(increment)})));
+		return While(condition, make_shared<Stmt>(Block({statement(), Expression(increment)})));
 	}
 	// increment is empty
 	else if (!std::holds_alternative<std::monostate>(initializer)) {
-		return Block({initializer, While(condition, std::make_shared<Stmt>(statement()))});
+		return Block({initializer, While(condition, make_shared<Stmt>(statement()))});
 	}
 	// infinite loop
-	return While(condition, std::make_shared<Stmt>(Block({statement()})));
+	return While(condition, make_shared<Stmt>(Block({statement()})));
 }
 
 Stmt Parser::printStatement() {

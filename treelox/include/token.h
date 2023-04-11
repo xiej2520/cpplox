@@ -1,5 +1,6 @@
 #pragma once
 
+#include "lox_object.h"
 #include <memory>
 #include <string>
 #include <variant>
@@ -98,16 +99,6 @@ constexpr std::string to_string(TokenType t) {
 	default: return "ERROR_TOKEN_NOT_FOUND";
 	}
 }
-
-
-struct LoxFunction;
-
-using LoxObject = std::variant<std::monostate, int, double, bool, std::string,
-	std::shared_ptr<LoxFunction>
-// LoxClass
-// NativeFunction
-// LoxInstance
->;
 
 // no const members because it deletes copy/move constructor
 class Token {

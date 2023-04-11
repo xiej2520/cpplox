@@ -8,12 +8,8 @@
 #include <memory>
 #include <variant>
 
+#include "lox_object.h"
 #include "runtime_error.h"
-
-struct LoxFunction;
-
-using LoxObject = std::variant<std::monostate, int, double, bool, std::string,
-	std::shared_ptr<LoxFunction>>;
 
 struct Environment {
 	Environment *parent;

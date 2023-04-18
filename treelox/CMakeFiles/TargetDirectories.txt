@@ -1,0 +1,3 @@
+/home/xiej/Documents/ProgrammingLocal/cpplox/treelox/CMakeFiles/lox.dir
+/home/xiej/Documents/ProgrammingLocal/cpplox/treelox/CMakeFiles/edit_cache.dir
+/home/xiej/Documents/ProgrammingLocal/cpplox/treelox/CMakeFiles/rebuild_cache.dir

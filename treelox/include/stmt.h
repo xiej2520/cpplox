@@ -11,6 +11,7 @@ struct Expression;
 struct Function;
 struct If;
 struct Print;
+struct Return;
 struct Var;
 struct While;
 
@@ -22,13 +23,27 @@ using Stmt = std::variant
 	Function,
 	If,
 	Print,
+	Return,
 	Var,
 	While
 >;
 
+struct Block {
+	const std::vector<Stmt> statements;
+	Block(std::vector<Stmt> statements);
+};
+
+
 struct Expression {
 	const Expr expression;
 	Expression(Expr expression);
+};
+
+struct Function {
+	const Token name;
+	const std::vector<Token> params;
+	const std::vector<Stmt> body;
+	Function(Token name, std::vector<Token> params, std::vector<Stmt> body);
 };
 
 struct If {
@@ -43,6 +58,12 @@ struct Print {
 	Print(Expr expression);
 };
 
+struct Return {
+	const Token keyword;
+	const Expr value;
+	Return(Token keyword, Expr value);
+};
+
 struct Var {
 	const Token name;
 	const std::optional<Expr> initializer;
@@ -53,16 +74,4 @@ struct While {
 	const Expr condition;
 	const std::shared_ptr<Stmt> body;
 	While(Expr condition, std::shared_ptr<Stmt> body);
-};
-
-struct Function {
-	const Token name;
-	const std::vector<Token> params;
-	const std::vector<Stmt> body;
-	Function(Token name, std::vector<Token> params, std::vector<Stmt> body);
-};
-
-struct Block {
-	const std::vector<Stmt> statements;
-	Block(std::vector<Stmt> statements);
 };

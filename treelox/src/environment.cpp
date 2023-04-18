@@ -1,12 +1,10 @@
 #include "environment.h"
 
-Environment::Environment() {
+Environment::Environment(): values(), uninitialized_values() {
 	parent = nullptr;
 }
 
-Environment::Environment(Environment &enclosing) {
-	parent = &enclosing;
-}
+Environment::Environment(std::shared_ptr<Environment> enclosing): parent(enclosing), values(), uninitialized_values() { }
 
 void Environment::define(const std::string &name, LoxObject value) {
 	values[name] = value;

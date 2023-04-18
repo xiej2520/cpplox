@@ -58,6 +58,7 @@ class Parser {
 	Stmt whileStatement();
 	Stmt forStatement();
 	Stmt printStatement();
+	Stmt returnStatement();
 	Stmt expressionStatement();
 	Function function(std::string kind);
 	Stmt declaration();

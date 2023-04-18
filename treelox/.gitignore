@@ -1,6 +1,8 @@
 .cache
 .vscode
 bin
+build
+test_output
 obj
 
 **/*.out

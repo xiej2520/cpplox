@@ -12,12 +12,12 @@
 #include "runtime_error.h"
 
 struct Environment {
-	Environment *parent;
+	std::shared_ptr<Environment> parent;
 	std::unordered_map<std::string, LoxObject> values;
 	std::unordered_set<std::string> uninitialized_values;
 	
 	Environment();
-	Environment(Environment &parent);
+	Environment(std::shared_ptr<Environment> parent);
 
 	void define(const std::string &name, LoxObject value);
 	void define_uninitialized(const std::string &name);

@@ -13,7 +13,7 @@ static std::string parenthesize(const std::string &name, const std::vector<Expr>
 
 // need const arguments for template to compile?
 struct ExprToString {
-	std::string operator()(const std::monostate m) {
+	std::string operator()(const std::monostate) {
 		return "";
 	}
 	std::string operator()(const Assign &expr) {
@@ -46,12 +46,12 @@ struct ExprToString {
 		return parenthesize(expr.op.lexeme, {*expr.right});
 	}
 	std::string operator()(const Variable &expr) {
-		return "var " + expr.name.lexeme + " = " + to_string(expr.name.literal);
+		return "var " + expr.name.lexeme;
 	}
 };
 
 struct StmtToString {
-	std::string operator()(const std::monostate m) {
+	std::string operator()(const std::monostate) {
 		return "";
 	}
 	std::string operator()(const Block &stmt) {
@@ -76,6 +76,9 @@ struct StmtToString {
 	}
 	std::string operator()(const Print &stmt) {
 		return "Print: " + std::visit(ExprToString(), stmt.expression);
+	}
+	std::string operator()(const Return &stmt) {
+		return "Return: " + stmt.keyword.repr() + std::visit(ExprToString(), stmt.value);
 	}
 	std::string operator()(const Var &stmt) {
 		return "Var " + stmt.name.lexeme + (stmt.initializer.has_value() ?

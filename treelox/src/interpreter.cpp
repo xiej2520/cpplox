@@ -12,7 +12,7 @@ struct Interpreter::EvaluateExpr {
 	Interpreter &it;
 	EvaluateExpr(Interpreter &it): it(it) {}
 
-	LoxObject operator()(std::monostate m) {
+	LoxObject operator()(std::monostate) {
 		return std::monostate{};
 	}
 	LoxObject operator()(Literal expr) {
@@ -87,10 +87,12 @@ struct Interpreter::EvaluateExpr {
 	}
 	LoxObject operator()(Call expr) {
 		LoxObject callee = it.evaluate(*expr.callee);
-		std::vector<LoxObject> arguments;
+
+		vector<LoxObject> arguments;
 		for (Expr argument : expr.arguments) {
 			arguments.push_back(it.evaluate(argument));
 		}
+
 		if (!holds_alternative<LoxFunction>(callee)) {
 			throw RuntimeError(expr.paren, "Can only call functions and classes.");
 		}
@@ -99,6 +101,7 @@ struct Interpreter::EvaluateExpr {
 			+ " arguments but got " + to_string(static_cast<int>(arguments.size())) + ".";
 			throw RuntimeError(expr.paren, msg);
 		}
+
 		return get<LoxFunction>(callee).operator()(it, arguments);
 	}
 	LoxObject operator()(Logical expr) {
@@ -121,22 +124,16 @@ struct Interpreter::EvaluateStmt {
 	Interpreter &it;
 	EvaluateStmt(Interpreter &it): it(it) {}
 
-	void operator()(std::monostate m) {}
+	void operator()(std::monostate) {}
 	void operator()(Block stmt) {
-		it.execute_block(stmt.statements, Environment(*it.environment));
+		it.execute_block(stmt.statements, make_shared<Environment>(it.environment));
 	}
 	void operator()(Expression stmt) {
 		it.evaluate(stmt.expression);
 	}
 	void operator()(Function stmt) {
-		auto fn = [stmt](Interpreter &it, vector<LoxObject> args) -> LoxObject {
-			Environment env = Environment(*it.globals);
-			for (int i=0; i < stmt.params.size(); i++) {
-				env.define(stmt.params[i].lexeme, args[i]);
-			}
-			it.execute_block(stmt.body, env);
-			return std::monostate{};
-		};
+		LoxFunction fn = LoxFunction(make_shared<Function>(stmt));
+		it.environment->define(stmt.name.lexeme, fn);
 	}
 	void operator()(If stmt) {
 		if (it.is_truthy(it.evaluate(stmt.condition))) {
@@ -148,7 +145,14 @@ struct Interpreter::EvaluateStmt {
 	}
 	void operator()(Print stmt) {
 		LoxObject value = it.evaluate(stmt.expression);
-		std::cout << std::visit(LoxObjToString(), value) << "\n";
+		std::cout << to_string(value) << "\n";
+	}
+	void operator()(Return stmt) {
+		LoxObject value = holds_alternative<std::monostate>(stmt.value) ? std::monostate{} : it.evaluate(stmt.value);
+		// lol
+		// buggy
+		// exceptions bad
+		throw ReturnUnwind(value);
 	}
 	void operator()(Var stmt) {
 		if (stmt.initializer.has_value()) {
@@ -167,12 +171,7 @@ struct Interpreter::EvaluateStmt {
 
 Interpreter::Interpreter(): globals(make_shared<Environment>()) {
 	environment = globals;
-	/*
-	globals->define("clock", make_shared<LoxFunction>(0, [](Interpreter &it, const std::vector<LoxObject> &args) {
-		return static_cast<double>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count());
-	}));
-	*/
-	globals->define("clock", NativeFunction(0, [](Interpreter &it, const std::vector<LoxObject> &args) {
+	globals->define("clock", NativeFunction(0, [](Interpreter &, const std::vector<LoxObject> &) {
 		return static_cast<double>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count());
 	}));
 }
@@ -206,16 +205,16 @@ void Interpreter::execute(const Stmt &stmt) {
 	std::visit(EvaluateStmt(*this), stmt);
 }
 
-void Interpreter::execute_block(const std::vector<Stmt> &statements, Environment new_env) {
+void Interpreter::execute_block(const vector<Stmt> &statements, shared_ptr<Environment> new_env) {
 	auto prev_env = this->environment;
 	try {
-		this->environment = make_shared<Environment>(new_env);
+		this->environment = new_env;
 		for (const Stmt &statement : statements) {
 			execute(statement);
 		}
 	}
 	catch (RuntimeError &err) { }
-	// no finally
+	// no finally, MUST CATCH OTHER EXCEPTIONS ELSEWHERE AND RESET this->environment (e.g. LoxFunction)
 	this->environment = prev_env;
 }
 

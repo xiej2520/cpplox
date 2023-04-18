@@ -30,10 +30,9 @@ class Interpreter;
 
 struct LoxFunction {
 	std::shared_ptr<Function> declaration;
-	// cannot use reference because deleted assign, cannot use weak_ptr because deleted ==
-	Interpreter *it;
+	// cannot use reference because deleted assign
 	size_t arity;
-	LoxFunction(std::shared_ptr<Function> declaration, Interpreter *it);
+	LoxFunction(std::shared_ptr<Function> declaration);
 
 	LoxObject operator()(Interpreter &it, const std::vector<LoxObject> &args);
 	bool operator==(const LoxFunction &lf);
@@ -52,16 +51,4 @@ struct NativeFunction {
 	friend bool operator==(const NativeFunction &nf1, const NativeFunction &nf2);
 };
 
-struct LoxObjToString {
-	std::string operator()(std::monostate m) const { return "nil"; }
-	std::string operator()(int i) const { return std::to_string(i); }
-	std::string operator()(double d) const { return std::to_string(d); }
-	std::string operator()(bool b) const { return b ? "true" : "false"; }
-	std::string operator()(const std::string &s) const { return "\"" + s + "\""; }
-	std::string operator()(LoxFunction f) { return "Function"; }
-	std::string operator()(NativeFunction f) { return "Native Function"; }
-};
-
-inline std::string to_string(const LoxObject &o) {
-	return std::visit(LoxObjToString(), o);
-}
+std::string to_string(const LoxObject &o);

@@ -2,8 +2,10 @@
 
 using enum TokenType;
 using std::make_shared;
+using std::string;
+using std::vector;
 
-Parser::Parser(const std::vector<Token> &tokens): tokens(tokens) {}
+Parser::Parser(const vector<Token> &tokens): tokens(tokens) {}
 
 Expr Parser::assignment() {
 	Expr expr(or_expr());
@@ -21,8 +23,8 @@ Expr Parser::assignment() {
 	return expr;
 }
 
-std::vector<Stmt> Parser::block() {
-	std::vector<Stmt> statements;
+vector<Stmt> Parser::block() {
+	vector<Stmt> statements;
 	while (!check(RIGHT_BRACE) && !isAtEnd()) {
 		statements.push_back(declaration());
 	}
@@ -64,7 +66,7 @@ Expr Parser::or_expr() {
 	return expr;
 }
 
-bool Parser::match(const std::vector<TokenType> types) {
+bool Parser::match(const vector<TokenType> types) {
 	for (TokenType type : types) {
 		if (check(type)) {
 			advance();
@@ -157,11 +159,13 @@ Expr Parser::call() {
 }
 
 Expr Parser::finishCall(std::shared_ptr<Expr> callee) {
-	std::vector<Expr> arguments;
+	vector<Expr> arguments;
 	if (!check(RIGHT_PAREN)) {
 		do {
 			// doesn't throw error, just reports it
-			if (arguments.size() >= 255) { /* error(peek(), "Can't have more than 255 arguments.");*/}
+			if (arguments.size() >= 255) {
+				// error(peek(), "Can't have more than 255 arguments.");
+			}
 			arguments.push_back(expression());
 		} while (match(COMMA));
 	}
@@ -187,14 +191,14 @@ Expr Parser::primary() {
 	throw error(peek(), "Expect expression.");
 }
 
-Token Parser::consume(TokenType type, std::string message) {
+Token Parser::consume(TokenType type, string message) {
 	if (check(type)) return advance();
 
 	// find a way to avoid exceptions
 	throw error(peek(), message);
 }
 
-Parser::ParseError Parser::error(Token token, std::string message) {
+Parser::ParseError Parser::error(Token token, string message) {
 	Lox::error(token, message);
 	return ParseError{};
 }
@@ -220,8 +224,8 @@ void Parser::synchronize() {
 	}
 }
 
-std::vector<Stmt> Parser::parse() {
-	std::vector<Stmt> statements;
+vector<Stmt> Parser::parse() {
+	vector<Stmt> statements;
 	while (!isAtEnd()) {
 		statements.push_back(declaration());
 	}
@@ -232,6 +236,7 @@ Stmt Parser::statement() {
 	if (match(FOR)) return forStatement();
 	if (match(IF)) return ifStatement();
 	if (match(PRINT)) return printStatement();
+	if (match(RETURN)) return returnStatement();
 	if (match(WHILE)) return whileStatement();
 	if (match(LEFT_BRACE)) return Block(block());
 	return expressionStatement();
@@ -294,16 +299,23 @@ Stmt Parser::printStatement() {
 	return Print(value);
 }
 
+Stmt Parser::returnStatement() {
+	Token keyword = previous();
+	Expr value = check(SEMICOLON) ? std::monostate{} : expression();
+	consume(SEMICOLON, "Expect ';' after return value.");
+	return Return(keyword, value);
+}
+
 Stmt Parser::expressionStatement() {
 	Expr expr = expression();
 	consume(SEMICOLON, "Expect ';' after expression.");
 	return Expression(expr);
 }
 
-Function Parser::function(std::string kind) {
+Function Parser::function(string kind) {
 	Token name = consume(IDENTIFIER, "Expect " + kind + " name.");
 	consume(LEFT_PAREN, "Expect '(' after " + kind + " name.");
-	std::vector<Token> parameters;
+	vector<Token> parameters;
 	if (!check(RIGHT_PAREN)) {
 		do {
 			// allow any number of parameters
@@ -314,7 +326,7 @@ Function Parser::function(std::string kind) {
 	}
 	consume(RIGHT_PAREN, "Expect ')' after parameters.");
 	consume(LEFT_BRACE, "Expect '{' before " + kind + " body.");
-	std::vector<Stmt> body = block();
+	vector<Stmt> body = block();
 	return Function(name, parameters, body);
 }
 
@@ -333,11 +345,10 @@ Stmt Parser::declaration() {
 Stmt Parser::varDeclaration() {
 	Token name = consume(IDENTIFIER, "Expect variable name.");
 	// default copy assignment operator deleted (const members), use pointer?
-	std::unique_ptr<Expr> initializer = nullptr;
+	std::optional<Expr> initializer = std::nullopt;
 	if (match(EQUAL)) {
-		initializer = std::make_unique<Expr>(expression());
+		initializer.emplace(expression());
 	}
 	consume(SEMICOLON, "Expect ';' after variable declaration.");
-	if (initializer == nullptr) return Var(name, std::nullopt);
-	return Var(name, *initializer.release());
+	return Var(name, initializer);
 }

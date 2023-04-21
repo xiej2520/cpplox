@@ -58,13 +58,7 @@ void Scanner::read_number() {
 void Scanner::read_identifier() {
 	while (std::isalnum(peek())) advance();
 	std::string text = src.substr(start, current - start);
-	TokenType type;
-	if (!keywords.count(text)) {
-		type = IDENTIFIER;
-	}
-	else {
-		type = keywords[text];
-	}
+	TokenType type = keywords.contains(text) ? keywords[text] : IDENTIFIER;
 	addToken(type);
 }
 

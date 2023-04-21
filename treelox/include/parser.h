@@ -28,7 +28,7 @@ class Parser {
 	// parses an or expression
 	Expr or_expr();
 	// matches the current token against a list of tokens, advances if it is
-	bool match(const std::vector<TokenType> types);
+	bool match(std::vector<TokenType> types);
 	bool match(TokenType type);
 	// check if the current token is of TokenType type
 	bool check(TokenType type);

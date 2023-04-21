@@ -9,6 +9,7 @@
 #include "scanner.h"
 #include "parser.h"
 #include "interpreter.h"
+#include "resolver.h"
 
 // circular dependency without
 class RuntimeError;

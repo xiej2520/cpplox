@@ -12,7 +12,7 @@
 #include "runtime_error.h"
 
 struct Environment {
-	std::shared_ptr<Environment> parent;
+	std::shared_ptr<Environment> enclosing;
 	std::unordered_map<std::string, LoxObject> values;
 	std::unordered_set<std::string> uninitialized_values;
 	
@@ -21,6 +21,9 @@ struct Environment {
 
 	void define(const std::string &name, LoxObject value);
 	void define_uninitialized(const std::string &name);
+	Environment &ancestor(int distance);
 	LoxObject get(Token name);
+	LoxObject get_at(int distance, std::string name);
 	void assign(Token name, LoxObject value);
+	void assign_at(int distance, Token name, LoxObject value);
 };

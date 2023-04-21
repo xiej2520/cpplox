@@ -1,19 +1,18 @@
-#include "stmt.h"
-#include "lox_object.h"
 #include "environment.h"
 #include "interpreter.h"
+#include "lox_object.h"
+#include "stmt.h"
 
 using std::function;
 using std::make_shared;
+using std::shared_ptr;
 using std::vector;
 
-LoxFunction::LoxFunction(std::shared_ptr<Function> declaration): declaration(declaration) {
-	arity = declaration->params.size();
-}
+LoxFunction::LoxFunction(shared_ptr<Function> declaration, shared_ptr<Environment> closure):
+	declaration(declaration), closure(closure), arity(declaration->params.size()) { }
 
 LoxObject LoxFunction::operator()(Interpreter &it, const vector<LoxObject> &args) {
-	auto prev_env = it.environment;
-	auto env = make_shared<Environment>(it.globals);
+	auto env = make_shared<Environment>(closure);
 	for (size_t i=0; i<declaration->params.size(); i++) {
 		env->define(declaration->params[i].lexeme, args[i]);
 	}
@@ -21,7 +20,6 @@ LoxObject LoxFunction::operator()(Interpreter &it, const vector<LoxObject> &args
 		it.execute_block(declaration->body, env);
 	}
 	catch (ReturnUnwind &res) {
-		it.environment = prev_env; // catching this ReturnUnwind prevents execute_block from resetting the env
 		return res.value;
 	}
 	return std::monostate{};

@@ -15,7 +15,7 @@
 #include "runtime_error.h"
 
 class Interpreter {
-
+	std::unordered_map<Expr *, int> locals;
 	// takes in an Expr, evaluates it down to LoxObject
 	LoxObject evaluate(Expr expr);
 	
@@ -46,4 +46,7 @@ public:
 	// not private for functions
 	void execute(const Stmt &stmt);
 	void execute_block(const std::vector<Stmt> &statements, std::shared_ptr<Environment> environment);
+	
+	void resolve(const Expr &expr, int depth);
+	LoxObject look_up_variable(Token name, const Expr &expr);
 };

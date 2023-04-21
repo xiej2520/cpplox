@@ -1,7 +1,7 @@
 .cache
 .vscode
-bin
 build
+CMakeFiles
 test_output
 obj
 

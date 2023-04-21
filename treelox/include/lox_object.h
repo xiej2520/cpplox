@@ -26,13 +26,15 @@ struct Unary;
 struct Variable;
 
 struct Function;
+struct Environment;
 class Interpreter;
 
 struct LoxFunction {
 	std::shared_ptr<Function> declaration;
+	std::shared_ptr<Environment> closure; // needs to be kept alive as long as LoxObject
 	// cannot use reference because deleted assign
 	size_t arity;
-	LoxFunction(std::shared_ptr<Function> declaration);
+	LoxFunction(std::shared_ptr<Function> declaration, std::shared_ptr<Environment> closure);
 
 	LoxObject operator()(Interpreter &it, const std::vector<LoxObject> &args);
 	bool operator==(const LoxFunction &lf);

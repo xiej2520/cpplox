@@ -1,17 +1,7 @@
 [
-  {
-    "arguments": [
-      "/usr/bin/g++",
-      "-Iinclude",
-      "-std=c++20",
-      "-Wall",
-      "-c",
-      "-o",
-      "obj/lox.o",
-      "src/lox.cpp"
-    ],
-    "directory": "/home/xiej/Documents/ProgrammingLocal/lox",
-    "file": "/home/xiej/Documents/ProgrammingLocal/lox/src/lox.cpp",
-    "output": "/home/xiej/Documents/ProgrammingLocal/lox/obj/lox.o"
-  }
+{
+  "directory": "/home/xiej/Documents/ProgrammingLocal/cpplox/treelox/build",
+  "command": "/usr/bin/clang++  -I/home/xiej/Documents/ProgrammingLocal/cpplox/treelox/include -g -Wall -Wextra -Werror -Wpedantic -std=gnu++20 -o CMakeFiles/lox.dir/src/token.cpp.o -c /home/xiej/Documents/ProgrammingLocal/cpplox/treelox/src/token.cpp",
+  "file": "/home/xiej/Documents/ProgrammingLocal/cpplox/treelox/src/token.cpp"
+}
 ]

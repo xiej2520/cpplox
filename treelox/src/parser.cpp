@@ -1,5 +1,6 @@
 #include "parser.h"
 
+#include <ranges>
 using enum TokenType;
 using std::make_shared;
 using std::string;
@@ -66,7 +67,7 @@ Expr Parser::or_expr() {
 	return expr;
 }
 
-bool Parser::match(const vector<TokenType> types) {
+bool Parser::match(vector<TokenType> types) {
 	for (TokenType type : types) {
 		if (check(type)) {
 			advance();
@@ -151,10 +152,8 @@ Expr Parser::call() {
 		if (match(LEFT_PAREN)) {
 			return finishCall(expr);
 		}
-		else {
-			Expr res = *expr;
-			return res;
-		}
+		Expr res = *expr;
+		return res;
 	}
 }
 
@@ -282,11 +281,11 @@ Stmt Parser::forStatement() {
 		)});
 	}
 	// initializer is empty
-	else if (!std::holds_alternative<std::monostate>(increment)) {
+	if (!std::holds_alternative<std::monostate>(increment)) {
 		return While(condition, make_shared<Stmt>(Block({statement(), Expression(increment)})));
 	}
 	// increment is empty
-	else if (!std::holds_alternative<std::monostate>(initializer)) {
+	if (!std::holds_alternative<std::monostate>(initializer)) {
 		return Block({initializer, While(condition, make_shared<Stmt>(statement()))});
 	}
 	// infinite loop

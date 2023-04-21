@@ -38,6 +38,11 @@ namespace Lox {
 		Parser parser(tokens);
 		std::vector<Stmt> statements = parser.parse();
 		if (hadError) return;
+		
+		Resolver resolver(interpreter);
+		resolver.resolve(statements);
+
+		if (hadError) return;
 		interpreter.interpret(statements);
 	}
 

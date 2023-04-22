@@ -36,15 +36,15 @@ class Interpreter {
 	void check_num_operands(Token op, LoxObject left, LoxObject right);
 
 public:
-	const std::shared_ptr<Environment> globals;
-	std::shared_ptr<Environment> environment;
+	Environment globals;
+	Environment *environment; // raw Environment * are NON-OWNING
 	Interpreter();
 	void interpret(const std::vector<Stmt> &expression);
 	void repl_interpret(const std::vector<Stmt> &expression);
 	
 	// not private for functions
 	void execute(const Stmt &stmt);
-	void execute_block(const std::vector<Stmt> &statements, std::shared_ptr<Environment> environment);
+	void execute_block(const std::vector<Stmt> &statements, Environment *environment);
 	
 	// overloading to const Expr & creates a copy on the stack??? doesn't work
 	void resolve(const Assign &expr, int depth);

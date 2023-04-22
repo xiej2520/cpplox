@@ -31,10 +31,10 @@ class Interpreter;
 
 struct LoxFunction {
 	const Function *declaration;
-	std::shared_ptr<Environment> closure; // needs to be kept alive as long as LoxObject
-	// cannot use reference because deleted assign
+	Environment *closure;
+	// lifetime of closure needs to at least as long as LoxFunction - I think this works?
 	size_t arity;
-	LoxFunction(const Function *declaration, std::shared_ptr<Environment> closure);
+	LoxFunction(const Function *declaration, Environment *closure);
 
 	LoxObject operator()(Interpreter &it, const std::vector<LoxObject> &args);
 	bool operator==(const LoxFunction &lf);

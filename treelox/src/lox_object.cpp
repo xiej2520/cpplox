@@ -4,20 +4,19 @@
 #include "stmt.h"
 
 using std::function;
-using std::make_shared;
-using std::shared_ptr;
+using std::make_unique;
 using std::vector;
 
-LoxFunction::LoxFunction(const Function *declaration, shared_ptr<Environment> closure):
+LoxFunction::LoxFunction(const Function *declaration, Environment *closure):
 	declaration(declaration), closure(closure), arity(declaration->params.size()) { }
 
 LoxObject LoxFunction::operator()(Interpreter &it, const vector<LoxObject> &args) {
-	auto env = make_shared<Environment>(closure);
+	auto env = make_unique<Environment>(closure);
 	for (size_t i=0; i<declaration->params.size(); i++) {
 		env->define(declaration->params[i].lexeme, args[i]);
 	}
 	try {
-		it.execute_block(declaration->body, env);
+		it.execute_block(declaration->body, env.get());
 	}
 	catch (ReturnUnwind &res) {
 		return res.value;

@@ -1,10 +1,8 @@
 #include "environment.h"
 
-Environment::Environment() {
-	enclosing = nullptr;
-}
+Environment::Environment(): enclosing(nullptr) { }
 
-Environment::Environment(std::shared_ptr<Environment> enclosing): enclosing(enclosing) { }
+Environment::Environment(Environment *enclosing): enclosing(enclosing) { }
 
 void Environment::define(const std::string &name, LoxObject value) {
 	values[name] = value;
@@ -17,7 +15,7 @@ void Environment::define_uninitialized(const std::string &name) {
 Environment &Environment::ancestor(int distance) {
 	Environment *env = this;
 	for (int i=0; i<distance; i++) {
-		env = env->enclosing.get();
+		env = env->enclosing;
 	}
 	return *env;
 }

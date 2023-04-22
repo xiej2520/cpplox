@@ -12,12 +12,12 @@
 #include "runtime_error.h"
 
 struct Environment {
-	std::shared_ptr<Environment> enclosing;
+	Environment *enclosing; // NON-OWNING raw pointers
 	std::unordered_map<std::string, LoxObject> values;
 	std::unordered_set<std::string> uninitialized_values;
 	
 	Environment();
-	Environment(std::shared_ptr<Environment> parent);
+	Environment(Environment *enclosing);
 
 	void define(const std::string &name, LoxObject value);
 	void define_uninitialized(const std::string &name);

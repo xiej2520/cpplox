@@ -1,12 +1,10 @@
 #include "interpreter.h"
 
-using std::make_shared;
-using std::shared_ptr;
+using std::make_unique;
 using std::holds_alternative;
 using std::get;
 using std::vector;
 
-#include "astprinter.h"
 using enum TokenType;
 
 struct Interpreter::EvaluateExpr {
@@ -22,7 +20,7 @@ struct Interpreter::EvaluateExpr {
 			it.environment->assign_at(it.locals[(Variable *)(&expr)], expr.name, value);
 		}
 		else {
-			it.globals->assign(expr.name, value);
+			it.globals.assign(expr.name, value);
 		}
 		return value;
 	}
@@ -141,7 +139,7 @@ struct Interpreter::EvaluateStmt {
 
 	void operator()(std::monostate) {}
 	void operator()(const Block &stmt) {
-		it.execute_block(stmt.statements, make_shared<Environment>(it.environment));
+		it.execute_block(stmt.statements, make_unique<Environment>(it.environment).get());
 	}
 	void operator()(const Expression &stmt) {
 		it.evaluate(stmt.expression);
@@ -167,6 +165,7 @@ struct Interpreter::EvaluateStmt {
 		// lol
 		// buggy
 		// exceptions bad
+		// this is INSANELY slow, at least for the fibonacci benchmark
 		throw ReturnUnwind(value);
 	}
 	void operator()(Var &stmt) {
@@ -184,8 +183,8 @@ struct Interpreter::EvaluateStmt {
 	}
 };
 
-Interpreter::Interpreter(): globals(make_shared<Environment>()), environment(globals) {
-	globals->define("clock", NativeFunction(0, [](Interpreter &, const std::vector<LoxObject> &) {
+Interpreter::Interpreter(): environment(&globals) {
+	globals.define("clock", NativeFunction(0, [](Interpreter &, const std::vector<LoxObject> &) {
 		return static_cast<double>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count());
 	}));
 }
@@ -220,10 +219,10 @@ void Interpreter::execute(const Stmt &stmt) {
 	std::visit(EvaluateStmt(*this), const_cast<Stmt &>(stmt));
 }
 
-void Interpreter::execute_block(const vector<Stmt> &statements, shared_ptr<Environment> new_env) {
+void Interpreter::execute_block(const vector<Stmt> &statements, Environment *new_env) {
 	struct SaveEnvironment {
 		Interpreter &it;
-		shared_ptr<Environment> prev_env;
+		Environment *prev_env;
 		SaveEnvironment(Interpreter &it): it(it), prev_env(it.environment)  { }
 		~SaveEnvironment() { it.environment = prev_env; }
 	};
@@ -235,7 +234,7 @@ void Interpreter::execute_block(const vector<Stmt> &statements, shared_ptr<Envir
 		}
 	}
 	catch (RuntimeError &err) { }
-	// RAII instead of finally replaces it. Otherwise, must catch ReturnUnwind in LoxFunction
+	// RAII instead of finally block. Otherwise, must catch ReturnUnwind in LoxFunction
 }
 
 void Interpreter::interpret(const std::vector<Stmt> &statements) {
@@ -285,7 +284,7 @@ LoxObject Interpreter::look_up_variable(Token name, const Variable &expr) {
 	}
 	else {
 		//std::cout << "local var not found, looking in globals" << std::endl;
-		return globals->get(name);
+		return globals.get(name);
 	}
 }
 

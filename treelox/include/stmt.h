@@ -29,49 +29,49 @@ using Stmt = std::variant
 >;
 
 struct Block {
-	const std::vector<Stmt> statements;
+	std::vector<Stmt> statements;
 	Block(std::vector<Stmt> statements);
 };
 
 
 struct Expression {
-	const Expr expression;
+	Expr expression;
 	Expression(Expr expression);
 };
 
 struct Function {
 	const Token name;
-	const std::vector<Token> params;
-	const std::vector<Stmt> body;
+	std::vector<Token> params;
+	std::vector<Stmt> body;
 	Function(Token name, std::vector<Token> params, std::vector<Stmt> body);
 };
 
 struct If {
-	const Expr condition;
-	const std::shared_ptr<Stmt> thenBranch;
-	const std::shared_ptr<Stmt> elseBranch;
-	If(Expr condition, std::shared_ptr<Stmt> thenBranch, std::shared_ptr<Stmt> elseBranch);
+	Expr condition;
+	std::unique_ptr<Stmt> then_branch;
+	std::unique_ptr<Stmt> else_branch;
+	If(Expr condition, std::unique_ptr<Stmt> thenBranch, std::unique_ptr<Stmt> elseBranch);
 };
 
 struct Print {
-	const Expr expression;
+	Expr expression;
 	Print(Expr expression);
 };
 
 struct Return {
 	const Token keyword;
-	const Expr value;
+	Expr value;
 	Return(Token keyword, Expr value);
 };
 
 struct Var {
 	const Token name;
-	const std::optional<Expr> initializer;
+	std::optional<Expr> initializer;
 	Var(Token name, std::optional<Expr> initializer);
 };
 
 struct While {
-	const Expr condition;
-	const std::shared_ptr<Stmt> body;
-	While(Expr condition, std::shared_ptr<Stmt> body);
+	Expr condition;
+	std::unique_ptr<Stmt> body;
+	While(Expr condition, std::unique_ptr<Stmt> body);
 };

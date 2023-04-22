@@ -1,7 +1,5 @@
 #pragma once
 
-#include "lox_object.h"
-#include <memory>
 #include <string>
 #include <variant>
 
@@ -100,13 +98,14 @@ constexpr std::string to_string(TokenType t) {
 	}
 }
 
-// no const members because it deletes copy/move constructor
-class Token {
-public:
+using TokenLiteral = std::variant<std::monostate, bool, int, double>;
+
+struct Token {
 	const TokenType type;
-	const std::string lexeme;
-	const LoxObject literal;
+	const std::string lexeme;   // will hold string literal
+	const TokenLiteral literal; // only keep literal for int and double
 	const int line;
-	Token(TokenType t, std::string lex, LoxObject lit, int line);
-	std::string repr() const;
+	Token(TokenType type, std::string_view lexeme, TokenLiteral literal, int line);
 };
+
+std::string to_string(const Token &t);

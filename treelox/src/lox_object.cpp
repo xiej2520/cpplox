@@ -8,7 +8,7 @@ using std::make_shared;
 using std::shared_ptr;
 using std::vector;
 
-LoxFunction::LoxFunction(shared_ptr<Function> declaration, shared_ptr<Environment> closure):
+LoxFunction::LoxFunction(const Function *declaration, shared_ptr<Environment> closure):
 	declaration(declaration), closure(closure), arity(declaration->params.size()) { }
 
 LoxObject LoxFunction::operator()(Interpreter &it, const vector<LoxObject> &args) {

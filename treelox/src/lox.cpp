@@ -1,18 +1,33 @@
 #include "lox.h"
 
+#include <fstream>
+#include <iostream>
+#include <sstream>
+#include <vector>
+
+#include "interpreter.h"
+#include "parser.h"
+#include "resolver.h"
+#include "scanner.h"
+#include "token.h"
+
 using enum TokenType;
+using std::string_view;
+using std::vector;
+
+#include "astprinter.h"
 
 namespace Lox {
-	bool hadError = false;
-	bool hadRuntimeError = false;
+	bool had_error = false;
+	bool had_runtime_error = false;
 	Interpreter interpreter;
 
-	void report(int line, const std::string &where, const std::string &msg) {
+	void report(int line, string_view where, string_view msg) {
 		std::cerr << "[line " << line << "] Error" << where << ": " << msg << "\n";
-		hadError = true;
+		had_error = true;
 	}
 
-	void error(Token token, const std::string &msg) {
+	void error(const Token &token, string_view msg) {
 		if (token.type == END_OF_FILE) {
 			report(token.line, " at end", msg);
 		}
@@ -21,56 +36,62 @@ namespace Lox {
 		}
 	}
 
-	void error(int line, const std::string &msg) {
+	void error(int line, string_view msg) {
 		report(line, "", msg);
 	}
 
 	void runtime_error(RuntimeError &err) {
 		std::cerr << err.what() << "\n[line " << err.token.line << "]" << "\n";
-		hadRuntimeError = true;
+		had_runtime_error = true;
 	}
 
 
-	void run(const std::string &src) {
+	void run(string_view src) {
 		Scanner scanner(src);
-		std::vector<Token> tokens = scanner.scanTokens();
+		vector<Token> tokens = scanner.scan_tokens();
 
 		Parser parser(tokens);
-		std::vector<Stmt> statements = parser.parse();
-		if (hadError) return;
-		
-		Resolver resolver(interpreter);
-		resolver.resolve(statements);
+		vector<Stmt> statements = parser.parse();
+		if (had_error) {
+			return;
+		}
 
-		if (hadError) return;
+		Resolver resolver(interpreter);
+		resolver.resolve_block(statements);
+
+		if (had_error) {
+			return;
+		}
 		interpreter.interpret(statements);
 	}
 
-	void repl_run(const std::string &src) {
+	void repl_run(string_view src) {
 		Scanner scanner(src);
-		std::vector<Token> tokens = scanner.scanTokens();
+		vector<Token> tokens = scanner.scan_tokens();
 
 		Parser parser(tokens);
-		std::vector<Stmt> statements = parser.parse();
-		if (hadError) return;
+		vector<Stmt> statements = parser.parse();
+		if (had_error) {
+			return;
+		}
 		interpreter.repl_interpret(statements);
 	}
 
-	void runFile(const std::string& path) {
+	void run_file(const std::string &path) {
 		std::ifstream f(path);
 		std::stringstream contents;
 		contents << f.rdbuf();
 		run(contents.str());
 		
-		if (hadError) {
+		if (had_error) {
 			std::exit(65); // BAD, FIX LATER
 		}
-		if (hadRuntimeError) {
+		if (had_runtime_error) {
 			std::exit(70);
 		}
 	}
 
-	void runPrompt() {
+	void run_prompt() {
 		while (true) {
 			std::cout << "> ";
 			std::string line;
@@ -80,7 +101,7 @@ namespace Lox {
 			}
 			repl_run(line);
 			std::cout << "\n";
-			hadError = false;
+			had_error = false;
 		}
 	}
 }

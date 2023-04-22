@@ -1,7 +1,57 @@
 [
 {
   "directory": "/home/xiej/Documents/ProgrammingLocal/cpplox/treelox/build",
-  "command": "/usr/bin/clang++  -I/home/xiej/Documents/ProgrammingLocal/cpplox/treelox/include -g -Wall -Wextra -Werror -Wpedantic -std=gnu++20 -o CMakeFiles/lox.dir/src/token.cpp.o -c /home/xiej/Documents/ProgrammingLocal/cpplox/treelox/src/token.cpp",
+  "command": "/usr/bin/clang++  -I/home/xiej/Documents/ProgrammingLocal/cpplox/treelox/include -g -Wall -Wextra -Werror -Wpedantic -gdwarf-4 -std=gnu++20 -o CMakeFiles/lox.dir/src/environment.cpp.o -c /home/xiej/Documents/ProgrammingLocal/cpplox/treelox/src/environment.cpp",
+  "file": "/home/xiej/Documents/ProgrammingLocal/cpplox/treelox/src/environment.cpp"
+},
+{
+  "directory": "/home/xiej/Documents/ProgrammingLocal/cpplox/treelox/build",
+  "command": "/usr/bin/clang++  -I/home/xiej/Documents/ProgrammingLocal/cpplox/treelox/include -g -Wall -Wextra -Werror -Wpedantic -gdwarf-4 -std=gnu++20 -o CMakeFiles/lox.dir/src/expr.cpp.o -c /home/xiej/Documents/ProgrammingLocal/cpplox/treelox/src/expr.cpp",
+  "file": "/home/xiej/Documents/ProgrammingLocal/cpplox/treelox/src/expr.cpp"
+},
+{
+  "directory": "/home/xiej/Documents/ProgrammingLocal/cpplox/treelox/build",
+  "command": "/usr/bin/clang++  -I/home/xiej/Documents/ProgrammingLocal/cpplox/treelox/include -g -Wall -Wextra -Werror -Wpedantic -gdwarf-4 -std=gnu++20 -o CMakeFiles/lox.dir/src/interpreter.cpp.o -c /home/xiej/Documents/ProgrammingLocal/cpplox/treelox/src/interpreter.cpp",
+  "file": "/home/xiej/Documents/ProgrammingLocal/cpplox/treelox/src/interpreter.cpp"
+},
+{
+  "directory": "/home/xiej/Documents/ProgrammingLocal/cpplox/treelox/build",
+  "command": "/usr/bin/clang++  -I/home/xiej/Documents/ProgrammingLocal/cpplox/treelox/include -g -Wall -Wextra -Werror -Wpedantic -gdwarf-4 -std=gnu++20 -o CMakeFiles/lox.dir/src/lox.cpp.o -c /home/xiej/Documents/ProgrammingLocal/cpplox/treelox/src/lox.cpp",
+  "file": "/home/xiej/Documents/ProgrammingLocal/cpplox/treelox/src/lox.cpp"
+},
+{
+  "directory": "/home/xiej/Documents/ProgrammingLocal/cpplox/treelox/build",
+  "command": "/usr/bin/clang++  -I/home/xiej/Documents/ProgrammingLocal/cpplox/treelox/include -g -Wall -Wextra -Werror -Wpedantic -gdwarf-4 -std=gnu++20 -o CMakeFiles/lox.dir/src/lox_object.cpp.o -c /home/xiej/Documents/ProgrammingLocal/cpplox/treelox/src/lox_object.cpp",
+  "file": "/home/xiej/Documents/ProgrammingLocal/cpplox/treelox/src/lox_object.cpp"
+},
+{
+  "directory": "/home/xiej/Documents/ProgrammingLocal/cpplox/treelox/build",
+  "command": "/usr/bin/clang++  -I/home/xiej/Documents/ProgrammingLocal/cpplox/treelox/include -g -Wall -Wextra -Werror -Wpedantic -gdwarf-4 -std=gnu++20 -o CMakeFiles/lox.dir/src/main.cpp.o -c /home/xiej/Documents/ProgrammingLocal/cpplox/treelox/src/main.cpp",
+  "file": "/home/xiej/Documents/ProgrammingLocal/cpplox/treelox/src/main.cpp"
+},
+{
+  "directory": "/home/xiej/Documents/ProgrammingLocal/cpplox/treelox/build",
+  "command": "/usr/bin/clang++  -I/home/xiej/Documents/ProgrammingLocal/cpplox/treelox/include -g -Wall -Wextra -Werror -Wpedantic -gdwarf-4 -std=gnu++20 -o CMakeFiles/lox.dir/src/parser.cpp.o -c /home/xiej/Documents/ProgrammingLocal/cpplox/treelox/src/parser.cpp",
+  "file": "/home/xiej/Documents/ProgrammingLocal/cpplox/treelox/src/parser.cpp"
+},
+{
+  "directory": "/home/xiej/Documents/ProgrammingLocal/cpplox/treelox/build",
+  "command": "/usr/bin/clang++  -I/home/xiej/Documents/ProgrammingLocal/cpplox/treelox/include -g -Wall -Wextra -Werror -Wpedantic -gdwarf-4 -std=gnu++20 -o CMakeFiles/lox.dir/src/resolver.cpp.o -c /home/xiej/Documents/ProgrammingLocal/cpplox/treelox/src/resolver.cpp",
+  "file": "/home/xiej/Documents/ProgrammingLocal/cpplox/treelox/src/resolver.cpp"
+},
+{
+  "directory": "/home/xiej/Documents/ProgrammingLocal/cpplox/treelox/build",
+  "command": "/usr/bin/clang++  -I/home/xiej/Documents/ProgrammingLocal/cpplox/treelox/include -g -Wall -Wextra -Werror -Wpedantic -gdwarf-4 -std=gnu++20 -o CMakeFiles/lox.dir/src/scanner.cpp.o -c /home/xiej/Documents/ProgrammingLocal/cpplox/treelox/src/scanner.cpp",
+  "file": "/home/xiej/Documents/ProgrammingLocal/cpplox/treelox/src/scanner.cpp"
+},
+{
+  "directory": "/home/xiej/Documents/ProgrammingLocal/cpplox/treelox/build",
+  "command": "/usr/bin/clang++  -I/home/xiej/Documents/ProgrammingLocal/cpplox/treelox/include -g -Wall -Wextra -Werror -Wpedantic -gdwarf-4 -std=gnu++20 -o CMakeFiles/lox.dir/src/stmt.cpp.o -c /home/xiej/Documents/ProgrammingLocal/cpplox/treelox/src/stmt.cpp",
+  "file": "/home/xiej/Documents/ProgrammingLocal/cpplox/treelox/src/stmt.cpp"
+},
+{
+  "directory": "/home/xiej/Documents/ProgrammingLocal/cpplox/treelox/build",
+  "command": "/usr/bin/clang++  -I/home/xiej/Documents/ProgrammingLocal/cpplox/treelox/include -g -Wall -Wextra -Werror -Wpedantic -gdwarf-4 -std=gnu++20 -o CMakeFiles/lox.dir/src/token.cpp.o -c /home/xiej/Documents/ProgrammingLocal/cpplox/treelox/src/token.cpp",
   "file": "/home/xiej/Documents/ProgrammingLocal/cpplox/treelox/src/token.cpp"
 }
 ]

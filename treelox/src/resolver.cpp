@@ -16,34 +16,35 @@ struct ResolverExprVisitor {
 		// do nothing
 	}
 	void operator()(const Assign &expr) {
-		rs.resolve(*expr.value);
-		rs.resolve_local(expr, expr.name);
+		rs.resolve_expr(*expr.value);
+		Assign &e = const_cast<Assign &>(expr);
+		rs.resolve_local(e, expr.name);
 	}
 	void operator()(const Binary &expr) {
-		rs.resolve(*expr.left);
-		rs.resolve(*expr.right);
+		rs.resolve_expr(*expr.left);
+		rs.resolve_expr(*expr.right);
 	}
 	void operator()(const Call &expr) {
-		rs.resolve(*expr.callee);
+		rs.resolve_expr(*expr.callee);
 		for (const Expr &argument : expr.arguments) {
-			rs.resolve(argument);
+			rs.resolve_expr(argument);
 		}
 	}
 	void operator()(const Grouping &expr) {
-		rs.resolve(*expr.expression);
+		rs.resolve_expr(*expr.expression);
 	}
 	void operator()(const Literal &) {
 		// do nothing
 	}
 	void operator()(const Logical &expr) {
-		rs.resolve(*expr.left);
-		rs.resolve(*expr.right);
+		rs.resolve_expr(*expr.left);
+		rs.resolve_expr(*expr.right);
 	}
 	void operator()(const Unary &expr) {
-		rs.resolve(*expr.right);
+		rs.resolve_expr(*expr.right);
 	}
 	void operator()(const Variable &expr) {
-		if (!rs.scopes.empty() && !rs.scopes.back()[expr.name.lexeme]) {
+		if (!rs.scopes.empty() && rs.scopes.back().contains(expr.name.lexeme)  && !rs.scopes.back()[expr.name.lexeme]) {
 			Lox::error(expr.name, "Can't read local variable in its own initializer.");
 		}
 		rs.resolve_local(expr, expr.name);
@@ -54,17 +55,16 @@ struct ResolverStmtVisitor {
 	Resolver &rs;
 	ResolverStmtVisitor(Resolver &rs): rs(rs) {}
 
-
 	void operator()(std::monostate) {
 		// do nothing
 	}
 	void operator()(const Block &stmt) {
 		rs.begin_scope();
-		rs.resolve(stmt.statements);
+		rs.resolve_block(stmt.statements);
 		rs.end_scope();
 	}
 	void operator()(const Expression &stmt) {
-		rs.resolve(stmt.expression);
+		rs.resolve_expr(stmt.expression);
 	}
 	void operator()(const Function &stmt) {
 		rs.declare(stmt.name);
@@ -72,33 +72,33 @@ struct ResolverStmtVisitor {
 		rs.resolve_function(stmt, FUNCTION);
 	}
 	void operator()(const If &stmt) {
-		rs.resolve(stmt.condition);
-		rs.resolve(*stmt.thenBranch);
-		if (stmt.elseBranch != nullptr) {
-			rs.resolve(*stmt.elseBranch);
+		rs.resolve_expr(stmt.condition);
+		rs.resolve_stmt(*stmt.then_branch);
+		if (stmt.else_branch != nullptr) {
+			rs.resolve_stmt(*stmt.else_branch);
 		}
 	}
 	void operator()(const Print &stmt) {
-		rs.resolve(stmt.expression);
+		rs.resolve_expr(stmt.expression);
 	}
 	void operator()(const Return &stmt) {
 		if (rs.current_function == NONE) {
 			Lox::error(stmt.keyword, "Can't return from top-level code.");
 		}
 		if (!std::holds_alternative<std::monostate>(stmt.value)) {
-			rs.resolve(stmt.value);
+			rs.resolve_expr(stmt.value);
 		}
 	}
 	void operator()(const Var &stmt) {
 		rs.declare(stmt.name);
 		if (stmt.initializer != std::nullopt) {
-			rs.resolve(stmt.initializer.value());
+			rs.resolve_expr(stmt.initializer.value());
 		}
 		rs.define(stmt.name);
 	}
 	void operator()(const While &stmt) {
-		rs.resolve(stmt.condition);
-		rs.resolve(*stmt.body);
+		rs.resolve_expr(stmt.condition);
+		rs.resolve_stmt(*stmt.body);
 	}
 };
 
@@ -123,24 +123,35 @@ void Resolver::define(Token name) {
 	scopes.back()[name.lexeme] = true;
 }
 
-void Resolver::resolve(const Expr &expr) {
+void Resolver::resolve_expr(const Expr &expr) {
 	std::visit(ResolverExprVisitor(*this), expr);
 }
 
-void Resolver::resolve(const Stmt &stmt) {
+#include <iostream>
+void Resolver::resolve_stmt(const Stmt &stmt) {
 	std::visit(ResolverStmtVisitor(*this), stmt);
 }
 
-void Resolver::resolve(const vector<Stmt> &statements) {
-	for (Stmt statement : statements) {
-		resolve(statement);
+void Resolver::resolve_block(const vector<Stmt> &statements) {
+	for (const Stmt &statement : statements) {
+		resolve_stmt(statement);
 	}
 }
 
-void Resolver::resolve_local(const Expr &expr, Token name) {
-	if (scopes.empty()) return;
-	for (size_t i=scopes.size()-1; i>=0; i--) {
+void Resolver::resolve_local(const Assign &expr, const Token &name) {
+	for (int i=scopes.size()-1; i>=0; i--) {
 		if (scopes[i].contains(name.lexeme)) {
+			//std::cout << "resolve local " << &expr << std::endl;
+			it.resolve(expr, scopes.size() - 1 - i);
+			return;
+		}
+	}
+}
+
+void Resolver::resolve_local(const Variable &expr, const Token &name) {
+	for (int i=scopes.size()-1; i>=0; i--) {
+		if (scopes[i].contains(name.lexeme)) {
+			//std::cout << "resolve local " << &expr << std::endl;
 			it.resolve(expr, scopes.size() - 1 - i);
 			return;
 		}
@@ -155,7 +166,7 @@ void Resolver::resolve_function(const Function &fn, FunctionType type) {
 		declare(param);
 		define(param);
 	}
-	resolve(fn.body);
+	resolve_block(fn.body);
 	end_scope();
 	current_function = enclosing_function;
 }

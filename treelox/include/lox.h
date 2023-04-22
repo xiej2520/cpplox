@@ -1,34 +1,26 @@
 #pragma once
 
-#include <iostream>
-#include <vector>
 #include <string>
-#include <sstream>
 #include <fstream>
-#include "token.h"
-#include "scanner.h"
-#include "parser.h"
-#include "interpreter.h"
-#include "resolver.h"
 
-// circular dependency without
 class RuntimeError;
+struct Token;
 
 namespace Lox {
-	extern bool hadError;
-	extern bool hadRuntimeError;
+	extern bool had_error;
+	extern bool had_runtime_error;
 
-	void report(int line, const std::string &where, const std::string &msg);
+	void report(int line, std::string_view where, std::string_view msg);
 
-	void error(int line, const std::string &msg);
+	void error(int line, std::string_view msg);
 
-	void error(Token token, const std::string &msg);
+	void error(const Token &token, std::string_view msg);
 	
 	void runtime_error(RuntimeError &err);
 
-	void run(const std::string &src);
+	void run(std::string_view src);
 
-	void runFile(const std::string &path);
+	void run_file(const std::string &path);
 
-	void runPrompt();
+	void run_prompt();
 }

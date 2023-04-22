@@ -177,6 +177,30 @@ src/interpreter.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/lox.dir/build.make CMakeFiles/lox.dir/src/interpreter.cpp.s
 .PHONY : src/interpreter.cpp.s
 
+src/lox.o: src/lox.cpp.o
+.PHONY : src/lox.o
+
+# target to build an object file
+src/lox.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/lox.dir/build.make CMakeFiles/lox.dir/src/lox.cpp.o
+.PHONY : src/lox.cpp.o
+
+src/lox.i: src/lox.cpp.i
+.PHONY : src/lox.i
+
+# target to preprocess a source file
+src/lox.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/lox.dir/build.make CMakeFiles/lox.dir/src/lox.cpp.i
+.PHONY : src/lox.cpp.i
+
+src/lox.s: src/lox.cpp.s
+.PHONY : src/lox.s
+
+# target to generate assembly for a file
+src/lox.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/lox.dir/build.make CMakeFiles/lox.dir/src/lox.cpp.s
+.PHONY : src/lox.cpp.s
+
 src/lox_object.o: src/lox_object.cpp.o
 .PHONY : src/lox_object.o
 
@@ -248,6 +272,30 @@ src/parser.s: src/parser.cpp.s
 src/parser.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/lox.dir/build.make CMakeFiles/lox.dir/src/parser.cpp.s
 .PHONY : src/parser.cpp.s
+
+src/resolver.o: src/resolver.cpp.o
+.PHONY : src/resolver.o
+
+# target to build an object file
+src/resolver.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/lox.dir/build.make CMakeFiles/lox.dir/src/resolver.cpp.o
+.PHONY : src/resolver.cpp.o
+
+src/resolver.i: src/resolver.cpp.i
+.PHONY : src/resolver.i
+
+# target to preprocess a source file
+src/resolver.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/lox.dir/build.make CMakeFiles/lox.dir/src/resolver.cpp.i
+.PHONY : src/resolver.cpp.i
+
+src/resolver.s: src/resolver.cpp.s
+.PHONY : src/resolver.s
+
+# target to generate assembly for a file
+src/resolver.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/lox.dir/build.make CMakeFiles/lox.dir/src/resolver.cpp.s
+.PHONY : src/resolver.cpp.s
 
 src/scanner.o: src/scanner.cpp.o
 .PHONY : src/scanner.o
@@ -321,30 +369,6 @@ src/token.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/lox.dir/build.make CMakeFiles/lox.dir/src/token.cpp.s
 .PHONY : src/token.cpp.s
 
-src/treelox.o: src/treelox.cpp.o
-.PHONY : src/treelox.o
-
-# target to build an object file
-src/treelox.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/lox.dir/build.make CMakeFiles/lox.dir/src/treelox.cpp.o
-.PHONY : src/treelox.cpp.o
-
-src/treelox.i: src/treelox.cpp.i
-.PHONY : src/treelox.i
-
-# target to preprocess a source file
-src/treelox.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/lox.dir/build.make CMakeFiles/lox.dir/src/treelox.cpp.i
-.PHONY : src/treelox.cpp.i
-
-src/treelox.s: src/treelox.cpp.s
-.PHONY : src/treelox.s
-
-# target to generate assembly for a file
-src/treelox.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/lox.dir/build.make CMakeFiles/lox.dir/src/treelox.cpp.s
-.PHONY : src/treelox.cpp.s
-
 # Help Target
 help:
 	@echo "The following are some of the valid targets for this Makefile:"
@@ -360,6 +384,9 @@ help:
 	@echo "... src/interpreter.o"
 	@echo "... src/interpreter.i"
 	@echo "... src/interpreter.s"
+	@echo "... src/lox.o"
+	@echo "... src/lox.i"
+	@echo "... src/lox.s"
 	@echo "... src/lox_object.o"
 	@echo "... src/lox_object.i"
 	@echo "... src/lox_object.s"
@@ -369,6 +396,9 @@ help:
 	@echo "... src/parser.o"
 	@echo "... src/parser.i"
 	@echo "... src/parser.s"
+	@echo "... src/resolver.o"
+	@echo "... src/resolver.i"
+	@echo "... src/resolver.s"
 	@echo "... src/scanner.o"
 	@echo "... src/scanner.i"
 	@echo "... src/scanner.s"
@@ -378,9 +408,6 @@ help:
 	@echo "... src/token.o"
 	@echo "... src/token.i"
 	@echo "... src/token.s"
-	@echo "... src/treelox.o"
-	@echo "... src/treelox.i"
-	@echo "... src/treelox.s"
 .PHONY : help
 
 

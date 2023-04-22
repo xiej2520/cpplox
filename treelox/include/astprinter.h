@@ -9,7 +9,9 @@
 #include "stmt.h"
 
 // forward declare...
-static std::string parenthesize(const std::string &name, const std::vector<Expr> &exprs);
+static std::string parenthesize(std::string_view name, std::vector<Expr *> exprs);
+inline std::string to_string(const Expr &expr);
+inline std::string to_string(const Stmt &stmt);
 
 // need const arguments for template to compile?
 struct ExprToString {
@@ -17,36 +19,36 @@ struct ExprToString {
 		return "";
 	}
 	std::string operator()(const Assign &expr) {
-		return expr.name.lexeme + " = " + to_string(expr.name.literal);		
+		return expr.name.lexeme + to_string(*expr.value);
 	}
 	std::string operator()(const Binary &expr) {
-		return parenthesize(expr.op.lexeme, {*expr.left, *expr.right});
+		return parenthesize(expr.op.lexeme, {expr.left.get(), expr.right.get()});
 	}
 	std::string operator()(const Call &expr) {
 		std::string res = std::visit(ExprToString(), *expr.callee) + "(";
-		for (size_t i=0; i<expr.arguments.size()-1; i++) {
-			res += std::visit(ExprToString(), expr.arguments[i]) + ", ";
-		}
 		if (!expr.arguments.empty()) {
+			for (size_t i=0; i<expr.arguments.size()-1; i++) {
+				res += std::visit(ExprToString(), expr.arguments[i]) + ", ";
+			}
 			res += std::visit(ExprToString(), expr.arguments.back());
 		}
 		return res + ")";
 	}
 	std::string operator()(const Grouping &expr) {
-		return parenthesize("group", {*expr.expression});
+		return parenthesize("group", {expr.expression.get()});
 	}
 	std::string operator()(const Literal &expr) {
 		if (std::holds_alternative<std::monostate>(expr.value)) return "nil";
 		return to_string(expr.value);
 	}
 	std::string operator()(const Logical &expr) {
-		return parenthesize(expr.op.lexeme, {*expr.left, *expr.right});
+		return parenthesize(expr.op.lexeme, {expr.left.get(), expr.right.get()});
 	}
 	std::string operator()(const Unary &expr) {
-		return parenthesize(expr.op.lexeme, {*expr.right});
+		return parenthesize(expr.op.lexeme, {expr.right.get()});
 	}
 	std::string operator()(const Variable &expr) {
-		return "var " + expr.name.lexeme;
+		return "var " + to_string(expr.name);
 	}
 };
 
@@ -67,18 +69,18 @@ struct StmtToString {
 		return "Expression: " + std::visit(ExprToString(), stmt.expression);
 	}
 	std::string operator()(const Function &stmt) {
-		return "Function: " + stmt.name.repr();
+		return "Function: " + to_string(stmt.name);
 	}
 	std::string operator()(const If &stmt) {
 		return "If " + std::visit(ExprToString(), stmt.condition) + " then\n"
-			+ std::visit(StmtToString(), *stmt.thenBranch) + "\nelse\n"
-			+ std::visit(StmtToString(), *stmt.elseBranch);
+			+ std::visit(StmtToString(), *stmt.then_branch) + "\nelse\n"
+			+ std::visit(StmtToString(), *stmt.else_branch);
 	}
 	std::string operator()(const Print &stmt) {
 		return "Print: " + std::visit(ExprToString(), stmt.expression);
 	}
 	std::string operator()(const Return &stmt) {
-		return "Return: " + stmt.keyword.repr() + std::visit(ExprToString(), stmt.value);
+		return "Return: " + to_string(stmt.keyword) + std::visit(ExprToString(), stmt.value);
 	}
 	std::string operator()(const Var &stmt) {
 		return "Var " + stmt.name.lexeme + (stmt.initializer.has_value() ?
@@ -90,21 +92,21 @@ struct StmtToString {
 	}
 };
 
-static std::string parenthesize(const std::string &name, const std::vector<Expr> &exprs) {
-	std::string s = "(" + name;
-	for (const Expr &expr: exprs) {
+static std::string parenthesize(std::string_view name, std::vector<Expr *> exprs) {
+	std::string s = "(" + std::string(name);
+	for (Expr *expr: exprs) {
 		s += " ";
-		s += std::visit(ExprToString(), expr);
+		s += std::visit(ExprToString(), *expr);
 	}
 	s += ")";
 	return s;
 }
 
 // inline to allow header definition
-inline std::string print(const Expr &expr) {
+inline std::string to_string(const Expr &expr) {
 	return std::visit(ExprToString(), expr);
 }
 
-inline std::string print(const Stmt &stmt) {
+inline std::string to_string(const Stmt &stmt) {
 	return std::visit(StmtToString(), stmt);
 }

@@ -1,44 +1,47 @@
 #pragma once
 
+#include <span>
 #include <vector>
-#include "lox.h"
+
 #include "expr.h"
 #include "stmt.h"
 #include "token.h"
-#include "astprinter.h"
 
 class Parser {
-	class ParseError {
-
-	};
+	class ParseError { };
 
 	std::vector<Token> tokens;
 	int current = 0;
-	
-	// parses a chain of assignment statements
-	Expr assignment();
-	// parses a block up to a right brace '}'
-	std::vector<Stmt> block();
-	// parses an expression
-	Expr expression();
-	// parses an equality expression '==', '!='
-	Expr equality();
-	// parses an and expression. Higher precedence than or
-	Expr and_expr();
-	// parses an or expression
-	Expr or_expr();
+
 	// matches the current token against a list of tokens, advances if it is
-	bool match(std::vector<TokenType> types);
+	bool match(const std::vector<TokenType> &types);
 	bool match(TokenType type);
 	// check if the current token is of TokenType type
 	bool check(TokenType type);
 	// advances the token counter
 	Token advance();
-	bool isAtEnd();
+	bool is_at_end();
 	// returns the current token
 	Token peek();
 	// returns the previous token
 	Token previous();
+
+	// expects the current token to be of TokenType type, otherwise error
+	Token consume(TokenType type, std::string_view message);
+	ParseError error(const Token &token, std::string_view message);
+	void synchronize();
+
+	
+	// parses an expression
+	Expr expression();
+	// parses a chain of assignment statements
+	Expr assignment();
+	// parses an or expression
+	Expr or_expr();
+	// parses an and expression. Higher precedence than or
+	Expr and_expr();
+	// parses an equality expression '==', '!='
+	Expr equality();
 	// parses a comparison expression
 	Expr comparison();
 	// parses an addition/subtraction expression
@@ -50,26 +53,24 @@ class Parser {
 	// parses a call expression
 	Expr call();
 	// scans forward until the call is completed with a ')'
-	Expr finishCall(std::shared_ptr<Expr> callee);
+	Expr finish_call(std::unique_ptr<Expr> callee);
 	Expr primary();
 	
 	Stmt statement();
-	Stmt ifStatement();
-	Stmt whileStatement();
-	Stmt forStatement();
-	Stmt printStatement();
-	Stmt returnStatement();
-	Stmt expressionStatement();
-	Function function(std::string kind);
+	// parses a block up to a right brace '}'
+	// returns a vector because this is reused for function()
+	std::vector<Stmt> block();
+	Stmt if_statement();
+	Stmt while_statement();
+	Stmt for_statement();
+	Stmt print_statement();
+	Stmt return_statement();
+	Stmt expression_statement();
+	Stmt function(std::string kind);
 	Stmt declaration();
-	Stmt varDeclaration();
-
-	// expects the current token to be of TokenType type, otherwise error
-	Token consume(TokenType type, std::string message);
-	ParseError error(Token token, std::string message);
-	void synchronize();
+	Stmt var_declaration();
 
 public:
-	Parser(const std::vector<Token> &tokens);
+	Parser(std::span<Token> tokens);
 	std::vector<Stmt> parse();
 };

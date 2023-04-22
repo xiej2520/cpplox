@@ -6,6 +6,7 @@ using std::holds_alternative;
 using std::get;
 using std::vector;
 
+#include "astprinter.h"
 using enum TokenType;
 
 struct Interpreter::EvaluateExpr {
@@ -15,36 +16,17 @@ struct Interpreter::EvaluateExpr {
 	LoxObject operator()(std::monostate) {
 		return std::monostate{};
 	}
-	LoxObject operator()(Literal &expr) {
-		return expr.value;
-	}
-	LoxObject operator()(Grouping &expr) {
-		return it.evaluate(*expr.expression);
-	}
-	LoxObject operator()(Unary &expr) {
-		LoxObject right = it.evaluate(*expr.right);
-		switch (expr.op.type) {
-			case MINUS:
-				it.check_num_operand(expr.op, right);
-				return -get<double>(right);
-			case BANG:
-				return !it.is_truthy(right);
-			default:
-				return std::monostate{};
-		}
-		return std::monostate{}; // unreachable
-	}
-	LoxObject operator()(Assign &expr) {
-		LoxObject value = it.evaluate(expr.value);
-		if (it.locals.contains((Expr *)(&expr))) {
-			it.environment->assign_at(it.locals[(Expr *)(&expr)], expr.name, value);
+	LoxObject operator()(const Assign &expr) {
+		LoxObject value = it.evaluate(*expr.value);
+		if (it.locals.contains((Variable *)(&expr))) {
+			it.environment->assign_at(it.locals[(Variable *)(&expr)], expr.name, value);
 		}
 		else {
 			it.globals->assign(expr.name, value);
 		}
 		return value;
 	}
-	LoxObject operator()(Binary &expr) {
+	LoxObject operator()(const Binary &expr) {
 		LoxObject left = it.evaluate(*expr.left);
 		LoxObject right = it.evaluate(*expr.right);
 		switch (expr.op.type) {
@@ -82,19 +64,19 @@ struct Interpreter::EvaluateExpr {
 				it.check_num_operands(expr.op, left, right);
 				return get<double>(left) <= std::get<double>(right);
 			case BANG_EQUAL:
-				return !it.is_equal(left, right);
+				return !(left == right);
 			case EQUAL_EQUAL:
-				return !it.is_equal(left, right);
+				return left == right;
 			default:
 				return std::monostate{};
 		}
 		return std::monostate{};
 	}
-	LoxObject operator()(Call &expr) {
+	LoxObject operator()(const Call &expr) {
 		LoxObject callee = it.evaluate(*expr.callee);
 
 		vector<LoxObject> arguments;
-		for (Expr argument : expr.arguments) {
+		for (const Expr &argument : expr.arguments) {
 			arguments.push_back(it.evaluate(argument));
 		}
 		
@@ -116,8 +98,14 @@ struct Interpreter::EvaluateExpr {
 		}
 		throw RuntimeError(expr.paren, "Can only call functions and classes.");
 	}
-	LoxObject operator()(Logical &expr) {
-		LoxObject left = it.evaluate(expr.left);
+	LoxObject operator()(const Grouping &expr) {
+		return it.evaluate(*expr.expression);
+	}
+	LoxObject operator()(const Literal &expr) {
+		return LoxObject(expr.value);
+	}
+	LoxObject operator()(const Logical &expr) {
+		LoxObject left = it.evaluate(*expr.left);
 		if (expr.op.type == OR) {
 			// short circuit
 			if (it.is_truthy(left)) return left;
@@ -125,9 +113,24 @@ struct Interpreter::EvaluateExpr {
 		else { // AND
 			if (!it.is_truthy(left)) return left;
 		}
-		return it.evaluate(expr.right);
+		return it.evaluate(*expr.right);
 	}
-	LoxObject operator()(Variable &expr) {
+	LoxObject operator()(const Unary &expr) {
+		LoxObject right = it.evaluate(*expr.right);
+		switch (expr.op.type) {
+			case MINUS:
+				it.check_num_operand(expr.op, right);
+				return -get<double>(right);
+			case BANG:
+				return !it.is_truthy(right);
+			default:
+				return std::monostate{};
+		}
+		return std::monostate{}; // unreachable
+	}
+	LoxObject operator()(const Variable &expr) {
+	//std::cout << "Alooking up variable " << to_string(expr) << " |" << &expr << std::endl;
+		//std::cout << "got variable " << to_string(it.look_up_variable(expr.name, expr)) << " from lookup" << std::endl;
 		return it.look_up_variable(expr.name, expr);
 	}
 };
@@ -137,29 +140,29 @@ struct Interpreter::EvaluateStmt {
 	EvaluateStmt(Interpreter &it): it(it) {}
 
 	void operator()(std::monostate) {}
-	void operator()(Block stmt) {
+	void operator()(const Block &stmt) {
 		it.execute_block(stmt.statements, make_shared<Environment>(it.environment));
 	}
-	void operator()(Expression &stmt) {
+	void operator()(const Expression &stmt) {
 		it.evaluate(stmt.expression);
 	}
-	void operator()(Function &stmt) {
-		LoxFunction fn = LoxFunction(make_shared<Function>(stmt), it.environment);
+	void operator()(const Function &stmt) {
+		LoxFunction fn = LoxFunction(&stmt, it.environment);
 		it.environment->define(stmt.name.lexeme, fn);
 	}
-	void operator()(If &stmt) {
+	void operator()(const If &stmt) {
 		if (it.is_truthy(it.evaluate(stmt.condition))) {
-			it.execute(*stmt.thenBranch);
+			it.execute(*stmt.then_branch);
 		}
-		else if (!holds_alternative<std::monostate>(*stmt.elseBranch)) {
-			it.execute(*stmt.elseBranch);
+		else if (!holds_alternative<std::monostate>(*stmt.else_branch)) {
+			it.execute(*stmt.else_branch);
 		}
 	}
-	void operator()(Print &stmt) {
+	void operator()(const Print &stmt) {
 		LoxObject value = it.evaluate(stmt.expression);
 		std::cout << to_string(value) << "\n";
 	}
-	void operator()(Return &stmt) {
+	void operator()(const Return &stmt) {
 		LoxObject value = holds_alternative<std::monostate>(stmt.value) ? std::monostate{} : it.evaluate(stmt.value);
 		// lol
 		// buggy
@@ -174,8 +177,8 @@ struct Interpreter::EvaluateStmt {
 			it.environment->define_uninitialized(stmt.name.lexeme);
 		}
 	}
-	void operator()(While &stmt) {
-		while (it.is_truthy((it.evaluate(stmt.condition)))) {
+	void operator()(const While &stmt) {
+		while (it.is_truthy(it.evaluate(stmt.condition))) {
 			it.execute(*stmt.body);
 		}
 	}
@@ -187,15 +190,11 @@ Interpreter::Interpreter(): globals(make_shared<Environment>()), environment(glo
 	}));
 }
 
-LoxObject Interpreter::evaluate(Expr expr) {
+LoxObject Interpreter::evaluate(const Expr &expr) {
 	return std::visit(EvaluateExpr(*this), expr);
 }
 
-bool Interpreter::is_equal(LoxObject a, LoxObject b) {
-	return a == b;
-}
-
-bool Interpreter::is_truthy(LoxObject obj) {
+bool Interpreter::is_truthy(const LoxObject &obj) {
 	if (holds_alternative<bool>(obj)) {
 		return get<bool>(obj);
 	}
@@ -203,16 +202,21 @@ bool Interpreter::is_truthy(LoxObject obj) {
 }
 
 void Interpreter::check_num_operand(Token op, LoxObject operand) {
-	if (holds_alternative<double>(operand)) return;
+	if (holds_alternative<double>(operand)) {
+		return;
+	}
 	throw RuntimeError(op, "Operand must be a number.");
 }
 
 void Interpreter::check_num_operands(Token op, LoxObject left, LoxObject right) {
-	if (holds_alternative<double>(left) && holds_alternative<double>(right)) return;
+	if (holds_alternative<double>(left) && holds_alternative<double>(right)) {
+		return;
+	}
 	throw RuntimeError(op, "Operands must be a numbers.");
 }
 
 void Interpreter::execute(const Stmt &stmt) {
+			//std::cout << "execute " << &stmt << std::endl;
 	std::visit(EvaluateStmt(*this), const_cast<Stmt &>(stmt));
 }
 
@@ -251,7 +255,7 @@ void Interpreter::repl_interpret(const std::vector<Stmt> &statements) {
 		for (const Stmt &statement : statements) {
 			if (holds_alternative<Expression>(statement)) {
 				LoxObject value = evaluate(get<Expression>(statement).expression);
-				std::cout << to_string(value) << "\n";
+				//std::cout << to_string(value) << "\n";
 			}
 			else {
 				execute(statement);
@@ -262,17 +266,25 @@ void Interpreter::repl_interpret(const std::vector<Stmt> &statements) {
 		Lox::runtime_error(err);
 	}
 }
-
-void Interpreter::resolve(const Expr &expr, int depth) {
-	Expr *key = const_cast<Expr *>(&expr);
+void Interpreter::resolve(const Assign &expr, int depth) {
+	Variable *key = (Variable *) const_cast<Assign *>(&expr);
 	locals[key] = depth;
+	//std::cout << "binding expr " << to_string(expr.name) << " to " << key << " depth " << depth << " addr" << &expr << std::endl;
 }
 
-LoxObject Interpreter::look_up_variable(Token name, const Expr &expr) {
-	if (locals.contains(const_cast<Expr *>(&expr))) {
-		return environment->get_at(locals[const_cast<Expr *>(&expr)], name.lexeme);
+void Interpreter::resolve(const Variable &expr, int depth) {
+	Variable *key = (Variable *) const_cast<Variable *>(&expr);
+	locals[key] = depth;
+	//std::cout << "binding expr " << to_string(expr) << " to " << key << " depth " << depth << " addr " << &expr << std::endl;
+}
+
+LoxObject Interpreter::look_up_variable(Token name, const Variable &expr) {
+	//std::cout << "looking up variable " << to_string(expr) << " |addr| " << &expr << std::endl;
+	if (locals.contains(const_cast<Variable *>(&expr))) {
+		return environment->get_at(locals[const_cast<Variable *>(&expr)], name.lexeme);
 	}
 	else {
+		//std::cout << "local var not found, looking in globals" << std::endl;
 		return globals->get(name);
 	}
 }

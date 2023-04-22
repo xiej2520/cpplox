@@ -4,6 +4,7 @@
 #include "scanner.h"
 #include "lox.h"
 
+/*
 void testASTPrint() {
 	Expr a = Literal(3);
 	std::cout << print(a) << std::endl;
@@ -11,7 +12,7 @@ void testASTPrint() {
 	std::cout << print(b) << std::endl;
 	Expr e = Binary(
 		std::make_shared<Expr>(Literal(3)),
-		Token(TokenType::MINUS, "-", std::monostate{} ,1),
+		Token(TokenType::MINUS, "-", std::monostate{}, 1),
 		std::make_shared<Expr>(Grouping(std::make_shared<Expr>(Literal(4342))))
 	);
 	std::cout << print(e) << std::endl;
@@ -22,6 +23,7 @@ void testASTPrint() {
 	);
 	std::cout << print(expression) << "\n";
 }
+*/
 
 int main(int argc, char *argv[]) {
 	std::vector<std::string> args(argc);
@@ -35,10 +37,10 @@ int main(int argc, char *argv[]) {
 		return 0;
 	}
 	else if (args.size() == 2) {
-		Lox::runFile(argv[1]);
+		Lox::run_file(argv[1]);
 	}
 	else {
-		Lox::runPrompt();
+		Lox::run_prompt();
 	}
 
 	return 0;

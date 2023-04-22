@@ -1,88 +1,100 @@
 #include "scanner.h"
 
+#include "lox.h"
+
 using enum TokenType;
 
-bool Scanner::isAtEnd() {
-	return current >= src.size();
+bool Scanner::is_at_end() {
+	return static_cast<size_t>(current) >= src.size();
 }
 
 char Scanner::advance() {
 	return src[current++];
 }
-void Scanner::addToken(TokenType type, LoxObject literal) {
-	std::string text = src.substr(start, current - start);
+void Scanner::add_token(TokenType type, TokenLiteral literal) {
+	std::string_view text = src.substr(start, current - start);
 	tokens.emplace_back(type, text, literal, line);
 }
 
-void Scanner::addToken(TokenType type) {
-	addToken(type, 0);
+void Scanner::add_token(TokenType type) {
+	add_token(type, std::monostate{});
 }
 
 bool Scanner::match(char expected) {
-	if (isAtEnd()) return false;
-	if (src[current] != expected) return false;
+	if (is_at_end() || src[current] != expected) {
+		return false;
+	}
 	current++;
 	return true;
 }
 
 char Scanner::peek() {
-	if (isAtEnd()) return '\0';
-	return src[current];
+	return is_at_end() ? '\0' : src[current];
 }
-char Scanner::peekNext() {
-	if (current + 1 >= src.size()) return '\0';
-	return src[current + 1];
+char Scanner::peek_next() {
+	return (static_cast<size_t>(current + 1) >= src.size()) ? '\0' : src[current + 1];
 }
 void Scanner::read_string() {
-	while (peek() != '"' && !isAtEnd()) {
-		if (peek() == '\n') line++;
+	while (peek() != '"' && !is_at_end()) {
+		if (peek() == '\n') {
+			line++;
+		}
 		advance();
 	}
-	if (isAtEnd()) {
+	if (is_at_end()) {
 		Lox::error(line, "Unterminated string.");
 		return;
 	}
 	advance(); // closing ""
-	std::string value = src.substr(start + 1, current - start - 2);
-	addToken(STRING, value);
-}
-void Scanner::read_number() {
-	while (std::isdigit(peek())) advance();
-	if (peek() == '.' && isdigit(peekNext())) {
-		advance();
-		while (std::isdigit(peek())) advance();
-	}
-	addToken(NUMBER,
-		std::stod(src.substr(start, current - start)));
-}
-void Scanner::read_identifier() {
-	while (std::isalnum(peek())) advance();
-	std::string text = src.substr(start, current - start);
-	TokenType type = keywords.contains(text) ? keywords[text] : IDENTIFIER;
-	addToken(type);
+	add_token(STRING, std::monostate{});
 }
 
-void Scanner::scanToken() {
+void Scanner::read_number() {
+	while (std::isdigit(peek())) {
+		advance();
+	}
+	if (peek() == '.' && isdigit(peek_next())) {
+		advance();
+		while (std::isdigit(peek())) {
+			advance();
+		}
+	}
+	add_token(NUMBER, std::stod(std::string(src.substr(start, current - start))));
+}
+void Scanner::read_identifier() {
+	while (std::isalnum(peek())) {
+		advance();
+	}
+	std::string_view text = src.substr(start, current - start);
+	TokenType type = keywords.contains(text) ? keywords[text] : IDENTIFIER;
+	add_token(type);
+}
+
+void Scanner::scan_token() {
 	char c = advance();
 	switch (c) {
-		case '(': addToken(LEFT_PAREN); break;
-		case ')': addToken(RIGHT_PAREN); break;
-		case '{': addToken(LEFT_BRACE); break;
-		case '}': addToken(RIGHT_BRACE); break;
-		case ',': addToken(COMMA); break;
-		case '.': addToken(DOT); break;
-		case '-': addToken(MINUS); break;
-		case '+': addToken(PLUS); break;
-		case ';': addToken(SEMICOLON); break;
-		case '*': addToken(STAR); break;
-		case '!': addToken(match('=') ? BANG_EQUAL : BANG); break;
-		case '=': addToken(match('=') ? EQUAL_EQUAL : EQUAL); break;
-		case '<': addToken(match('=') ? LESS_EQUAL : LESS); break;
-		case '>': addToken(match('=') ? GREATER_EQUAL : GREATER); break;
-		case '/': if (match('/')) {
-				while (peek() != '\n' && !isAtEnd()) advance();
-			} else {
-				addToken(SLASH);
+		case '(': add_token(LEFT_PAREN); break;
+		case ')': add_token(RIGHT_PAREN); break;
+		case '{': add_token(LEFT_BRACE); break;
+		case '}': add_token(RIGHT_BRACE); break;
+		case ',': add_token(COMMA); break;
+		case '.': add_token(DOT); break;
+		case '-': add_token(MINUS); break;
+		case '+': add_token(PLUS); break;
+		case ';': add_token(SEMICOLON); break;
+		case '*': add_token(STAR); break;
+		case '!': add_token(match('=') ? BANG_EQUAL : BANG); break;
+		case '=': add_token(match('=') ? EQUAL_EQUAL : EQUAL); break;
+		case '<': add_token(match('=') ? LESS_EQUAL : LESS); break;
+		case '>': add_token(match('=') ? GREATER_EQUAL : GREATER); break;
+		case '/':
+			if (match('/')) {
+				while (peek() != '\n' && !is_at_end())  {
+					advance();
+				}
+			}
+			else {
+				add_token(SLASH);
 			}
 			break;
 		case ' ':
@@ -104,7 +116,7 @@ void Scanner::scanToken() {
 	}
 }
 
-Scanner::Scanner(std::string src): src(src) {
+Scanner::Scanner(std::string_view src): src(src) {
 	keywords["and"]    = AND;
 	keywords["class"]  = CLASS;
 	keywords["else"]   = ELSE;
@@ -123,11 +135,11 @@ Scanner::Scanner(std::string src): src(src) {
 	keywords["while"]  = WHILE;
 }
 
-std::vector<Token> Scanner::scanTokens() {
-	while (!isAtEnd()) {
+std::vector<Token> Scanner::scan_tokens() {
+	while (!is_at_end()) {
 		start = current;
-		scanToken();
+		scan_token();
 	}
-	tokens.push_back(Token(END_OF_FILE, "", std::monostate{}, line));
+	tokens.emplace_back(END_OF_FILE, "", std::monostate{}, line);
 	return tokens;
 }

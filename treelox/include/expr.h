@@ -29,53 +29,57 @@ using Expr = std::variant
 >;
 
 /*
- * NEED shared_ptr FOR INDIRECTION!
- * const members deletes default assignment operator
+ * Need indirection
+ * std::unique_ptr can't be marked const, otherwise it can't be moved from in the constructor
+ * Do not assign Exprs
  */
+
 struct Assign {
 	const Token name;
-	const std::shared_ptr<Expr> value;
-	Assign(Token name, std::shared_ptr<Expr> value): name(name), value(value) {}
+	std::unique_ptr<Expr> value;
+	Assign(Token name, std::unique_ptr<Expr> value);
 };
 
 struct Binary {
-	const std::shared_ptr<Expr> left;
+	std::unique_ptr<Expr> left;
 	const Token op;
-	const std::shared_ptr<Expr> right;
-	Binary(std::shared_ptr<Expr> left, Token op, std::shared_ptr<Expr> right): left(left), op(op), right(right) {}
+	std::unique_ptr<Expr> right;
+	Binary(std::unique_ptr<Expr> left, Token op, std::unique_ptr<Expr> right);
+};
+
+struct Call {
+	std::unique_ptr<Expr> callee;
+	const Token paren;
+	std::vector<Expr> arguments;
+	Call(std::unique_ptr<Expr> callee, Token paren, std::vector<Expr> arguments);
 };
 
 struct Grouping {
-	const std::shared_ptr<Expr> expression;
-	Grouping(std::shared_ptr<Expr> expression): expression(expression) {}
+	std::unique_ptr<Expr> expression;
+	Grouping(std::unique_ptr<Expr> expression);
 };
 
 struct Literal {
 	const LoxObject value;
-	Literal(LoxObject value): value(value) {}
+	Literal(LoxObject value);
 };
 
 struct Logical {
-	const std::shared_ptr<Expr> left;
+	std::unique_ptr<Expr> left;
 	const Token op;
-	const std::shared_ptr<Expr> right;
-	Logical(std::shared_ptr<Expr> left, Token op, std::shared_ptr<Expr> right): left(left), op(op), right(right) {}
+	std::unique_ptr<Expr> right;
+	Logical(std::unique_ptr<Expr> left, Token op, std::unique_ptr<Expr> right);
 };
 
 struct Unary {
 	const Token op;
-	const std::shared_ptr<Expr> right;
-	Unary(Token op, std::shared_ptr<Expr> right): op(op), right(right) {}
+	std::unique_ptr<Expr> right;
+	Unary(Token op, std::unique_ptr<Expr> right);
 };
 
 struct Variable {
 	const Token name;
-	Variable(Token name): name(name) {}
+	Variable(Token name);
 };
 
-struct Call {
-	const std::shared_ptr<Expr> callee;
-	const Token paren;
-	const std::vector<Expr> arguments;
-	Call(std::shared_ptr<Expr> callee, Token paren, std::vector<Expr> arguments): callee(callee), paren(paren), arguments(arguments) {}
-};
+using LocalsKeys = std::variant<Assign, Variable>;

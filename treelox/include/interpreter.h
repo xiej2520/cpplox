@@ -15,18 +15,6 @@
 #include "runtime_error.h"
 
 class Interpreter {
-	std::unordered_map<Expr *, int> locals;
-	// takes in an Expr, evaluates it down to LoxObject
-	LoxObject evaluate(Expr expr);
-	
-	bool is_equal(LoxObject a, LoxObject b);
-	// only true value is bool true, everything else is false
-	bool is_truthy(LoxObject obj);
-
-	void check_num_operand(Token op, LoxObject operand);
-	void check_num_operands(Token op, LoxObject left, LoxObject right);
-
-public:
 	/* Constructor requires an Interpreter argument
 	 * Use with std::visit
 	 * takes a Expr expr argument, evaluates and returns final LoxObject
@@ -37,6 +25,17 @@ public:
 	 * takes a Stmt stmt argument, runs it with interpreter
 	 */
 	struct EvaluateStmt;
+	std::unordered_map<Variable *, int> locals;
+	// takes in an Expr, evaluates it down to LoxObject
+	LoxObject evaluate(const Expr &expr);
+	
+	// only true value is bool true, everything else is false
+	bool is_truthy(const LoxObject &obj);
+
+	void check_num_operand(Token op, LoxObject operand);
+	void check_num_operands(Token op, LoxObject left, LoxObject right);
+
+public:
 	const std::shared_ptr<Environment> globals;
 	std::shared_ptr<Environment> environment;
 	Interpreter();
@@ -47,6 +46,9 @@ public:
 	void execute(const Stmt &stmt);
 	void execute_block(const std::vector<Stmt> &statements, std::shared_ptr<Environment> environment);
 	
-	void resolve(const Expr &expr, int depth);
-	LoxObject look_up_variable(Token name, const Expr &expr);
+	// overloading to const Expr & creates a copy on the stack??? doesn't work
+	void resolve(const Assign &expr, int depth);
+	void resolve(const Variable &expr, int depth);
+	// using const Expr &expr instead of const Variable &expr creates a temporary on the stack?
+	LoxObject look_up_variable(Token name, const Variable &expr);
 };

@@ -19,9 +19,13 @@ struct Resolver {
 	void end_scope();
 	void declare(Token name);
 	void define(Token name);
-	void resolve(const Expr &expr);
-	void resolve(const Stmt &stmt);
-	void resolve(const std::vector<Stmt> &statements);
-	void resolve_local(const Expr &expr, Token name);
+	void resolve_expr(const Expr &expr);
+	void resolve_stmt(const Stmt &stmt);
+	void resolve_block(const std::vector<Stmt> &statements);
+
+	// overloading to const Expr & creates a copy on the stack??? doesn't work
+	void resolve_local(const Assign &expr, const Token &name);
+	void resolve_local(const Variable &expr, const Token &name);
+
 	void resolve_function(const Function &fn, FunctionType type);
 };

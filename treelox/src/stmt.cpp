@@ -1,18 +1,35 @@
 #include "stmt.h"
 
-Block::Block(std::vector<Stmt> statements): statements(statements) {}
+using std::unique_ptr;
+using std::vector;
 
-Expression::Expression(Expr expression): expression(expression) {}
+static_assert(std::is_move_constructible<Stmt>::value, "not move constructible");
+static_assert(std::is_move_constructible<Block>::value, "not move constructible");
+static_assert(std::is_move_constructible<Expression>::value, "not move constructible");
+static_assert(std::is_move_constructible<Function>::value, "not move constructible");
+static_assert(std::is_move_constructible<If>::value, "not move constructible");
+static_assert(std::is_move_constructible<Print>::value, "not move constructible");
+static_assert(std::is_move_constructible<Return>::value, "not move constructible");
+static_assert(std::is_move_constructible<Var>::value, "not move constructible");
+static_assert(std::is_move_constructible<While>::value, "not move constructible");
 
-Function::Function(Token name, std::vector<Token> params, std::vector<Stmt> body): name(name), params(params), body(body) {}
+Block::Block(vector<Stmt> statements): statements(std::move(statements)) {}
 
-If::If(Expr condition, std::shared_ptr<Stmt> thenBranch, std::shared_ptr<Stmt> elseBranch):
-	condition(condition), thenBranch(thenBranch), elseBranch(elseBranch) {}
+Expression::Expression(Expr expression): expression(std::move(expression)) {}
 
-Print::Print(Expr expression): expression(expression) {}
+Function::Function(Token name, vector<Token> params, vector<Stmt> body):
+	name(std::move(name)), params(std::move(params)), body(std::move(body)) {}
 
-Return::Return(Token keyword, Expr value): keyword(keyword), value(value) {}
+If::If(Expr condition, unique_ptr<Stmt> then_branch, unique_ptr<Stmt> else_branch):
+	condition(std::move(condition)), then_branch(std::move(then_branch)), else_branch(std::move(else_branch)) {}
 
-Var::Var(Token name, std::optional<Expr> initializer): name(name), initializer(initializer) {}
+Print::Print(Expr expression): expression(std::move(expression)) {}
 
-While::While(Expr condition, std::shared_ptr<Stmt> body): condition(condition), body(body) {}
+Return::Return(Token keyword, Expr value):
+	keyword(std::move(keyword)), value(std::move(value)) {}
+
+Var::Var(Token name, std::optional<Expr> initializer):
+	name(std::move(name)), initializer(std::move(initializer)) {}
+
+While::While(Expr condition, unique_ptr<Stmt> body):
+	condition(std::move(condition)), body(std::move(body)) {}

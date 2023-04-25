@@ -5,7 +5,9 @@
 
 using std::function;
 using std::make_unique;
+using std::make_shared;
 using std::optional;
+using std::shared_ptr;
 using std::string;
 using std::string_view;
 using std::unordered_map;
@@ -58,7 +60,7 @@ LoxClass::LoxClass(string_view name, unordered_map<string, LoxFunction> methods)
 	name(name), methods(std::move(methods)) {}
 
 LoxInstance LoxClass::operator()(Interpreter &, const std::vector<LoxObject> &) {
-	return LoxInstance(*this);
+	return LoxInstance(shared_from_this());
 }
 
 std::optional<LoxFunction> LoxClass::find_method(const string &method_name) {
@@ -78,7 +80,7 @@ bool operator==(const LoxClass &, const LoxClass &) {
 }
 
 
-LoxInstance::LoxInstance(LoxClass &klass): klass(&klass) { }
+LoxInstance::LoxInstance(shared_ptr<LoxClass> klass): klass(klass) { }
 
 LoxObject LoxInstance::get(const Token &name) {
 	if (fields.contains(name.lexeme)) {
@@ -113,7 +115,7 @@ struct LoxObjToString {
 	string operator()(const string &s) const { return s; }
 	string operator()(LoxFunction f) { return "<fn " + f.declaration->name.lexeme + ">"; }
 	string operator()(NativeFunction) { return "<native fn>"; }
-	string operator()(const LoxClass &c) { return c.name; }
+	string operator()(shared_ptr<LoxClass> c) { return c->name; }
 	string operator()(const LoxInstance &o) { return o.klass->name + " instance"; }
 };
 

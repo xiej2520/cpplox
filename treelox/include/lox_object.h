@@ -17,7 +17,7 @@ struct LoxInstance;
 using LoxObject = std::variant<std::monostate, int, double, bool, std::string,
 	LoxFunction,
 	NativeFunction,
-	LoxClass,
+	std::shared_ptr<LoxClass>, // classes need to be kept alive after they're reassigned
 	LoxInstance
 >;
 
@@ -58,7 +58,12 @@ struct NativeFunction {
 	friend bool operator==(const NativeFunction &, const NativeFunction &);
 };
 
-struct LoxClass {
+/**
+ * LoxClass needs to be kept alive as long as there are instances of it - so it
+ * will be kept as shared_ptr
+ * inherit enable_shared_from_this to allow operator() to make shared_ptr from itself
+ */
+struct LoxClass: std::enable_shared_from_this<LoxClass> {
 	std::string name;
 	std::unordered_map<std::string, LoxFunction> methods;
 
@@ -74,9 +79,9 @@ struct LoxClass {
 struct Token;
 
 struct LoxInstance {
-	LoxClass *klass; // non-owning
+	std::shared_ptr<LoxClass> klass;
 	std::unordered_map<std::string, LoxObject> fields;
-	LoxInstance(LoxClass &klass);
+	LoxInstance(std::shared_ptr<LoxClass> klass);
 
 	LoxObject get(const Token &name);
 	void set(const Token &name, const LoxObject &value);

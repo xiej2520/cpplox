@@ -1,8 +1,10 @@
 #include "interpreter.h"
 
 using std::make_unique;
+using std::make_shared;
 using std::holds_alternative;
 using std::get;
+using std::shared_ptr;
 using std::string;
 using std::unordered_map;
 using std::vector;
@@ -96,9 +98,10 @@ struct Interpreter::EvaluateExpr {
 			}
 			return get<NativeFunction>(callee).operator()(it, arguments);
 		}
-		if (holds_alternative<LoxClass>(callee)) {
+		if (holds_alternative<shared_ptr<LoxClass>>(callee)) {
+			// No long valid due to using shared_ptr
 			// watch out for callee being deallocated from stack if rewriting!
-			return get<LoxClass>(callee).operator()(it, arguments);
+			return get<shared_ptr<LoxClass>>(callee)->operator()(it, arguments);
 		}
 		throw RuntimeError(expr.paren, "Can only call functions and classes.");
 	}
@@ -150,7 +153,7 @@ struct Interpreter::EvaluateExpr {
 		return std::monostate{}; // unreachable
 	}
 	LoxObject operator()(const Variable &expr) {
-	std::cout << "Alooking up variable " << expr.name.lexeme << " |" << &expr << std::endl;
+	//std::cout << "Alooking up variable " << expr.name.lexeme << " |" << &expr << std::endl;
 		//std::cout << "got variable " << to_string(it.look_up_variable(expr.name, expr)) << " from lookup" << std::endl;
 		return it.look_up_variable(expr.name, expr);
 	}
@@ -170,7 +173,7 @@ struct Interpreter::EvaluateStmt {
 		for (const Function &method : stmt.methods) {
 			methods.emplace(method.name.lexeme, LoxFunction(&method, it.environment));
 		}
-		LoxClass klass(stmt.name.lexeme, methods);
+		auto klass = make_shared<LoxClass>(stmt.name.lexeme, methods);
 		it.environment->assign(stmt.name, klass);
 	}
 	void operator()(const Expression &stmt) {

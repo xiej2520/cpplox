@@ -14,6 +14,8 @@ struct Grouping;
 struct Literal;
 struct Logical;
 struct Set;
+struct Super;
+struct This;
 struct Unary;
 struct Variable;
 
@@ -28,6 +30,8 @@ using Expr = std::variant
 	Literal,
 	Logical,
 	Set,
+	Super,
+	This,
 	Unary,
 	Variable
 >;
@@ -86,6 +90,17 @@ struct Set {
 	const Token name;
 	std::unique_ptr<Expr> value;
 	Set(std::unique_ptr<Expr> object, Token name, std::unique_ptr<Expr> value);
+};
+
+struct Super {
+	const Token keyword;
+	const Token method;
+	Super(Token keyword, Token method);
+};
+
+struct This {
+	const Token keyword;
+	This(Token keyword);
 };
 
 struct Unary {

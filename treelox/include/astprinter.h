@@ -9,7 +9,7 @@
 #include "stmt.h"
 
 // forward declare...
-static std::string parenthesize(std::string_view name, std::vector<Expr *> exprs);
+static std::string parenthesize(std::string_view name, const std::vector<Expr *> &exprs);
 inline std::string to_string(const Expr &expr);
 inline std::string to_string(const Stmt &stmt);
 
@@ -49,6 +49,12 @@ struct ExprToString {
 	}
 	std::string operator()(const Set &expr) {
 		return to_string(*expr.object) + "." + to_string(expr.name) + " <- " + to_string(*expr.value);
+	}
+	std::string operator()(const Super &expr) {
+		return "super (" + to_string(expr.keyword) + ")";
+	}
+	std::string operator()(const This &expr) {
+		return "this (" + to_string(expr.keyword) + ")";
 	}
 	std::string operator()(const Unary &expr) {
 		return parenthesize(expr.op.lexeme, {expr.right.get()});
@@ -101,7 +107,7 @@ struct StmtToString {
 	}
 };
 
-static std::string parenthesize(std::string_view name, std::vector<Expr *> exprs) {
+static std::string parenthesize(std::string_view name, const std::vector<Expr *> &exprs) {
 	std::string s = "(" + std::string(name);
 	for (Expr *expr: exprs) {
 		s += " ";

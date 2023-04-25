@@ -32,7 +32,7 @@ char Scanner::peek() {
 	return is_at_end() ? '\0' : src[current];
 }
 char Scanner::peek_next() {
-	return (static_cast<size_t>(current + 1) >= src.size()) ? '\0' : src[current + 1];
+	return (static_cast<size_t>(current) + 1 >= src.size()) ? '\0' : src[current + 1];
 }
 void Scanner::read_string() {
 	while (peek() != '"' && !is_at_end()) {

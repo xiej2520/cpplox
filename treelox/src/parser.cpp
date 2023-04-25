@@ -2,8 +2,11 @@
 
 #include "lox.h"
 
+#include <optional>
+
 using enum TokenType;
 using std::make_unique;
+using std::optional;
 using std::string;
 using std::string_view;
 using std::span;
@@ -250,6 +253,15 @@ Expr Parser::primary() {
 		consume(RIGHT_PAREN, "Expect ')' after expression.");
 		return Grouping(make_unique<Expr>(std::move(expr)));
 	}
+	if (match(SUPER)) {
+		Token keyword = previous();
+		consume(DOT, "Expect '.' after 'super'.");
+		Token method = consume(IDENTIFIER, "Expect superclass method name.");
+		return Super(keyword, method);
+	}
+	if (match(THIS)) {
+		return This(previous());
+	}
 	if (match(IDENTIFIER)) {
 		return Variable(previous());
 	}
@@ -318,8 +330,8 @@ Stmt Parser::for_statement() {
 	if (!std::holds_alternative<std::monostate>(initializer) &&
 		!std::holds_alternative<std::monostate>(increment)) {
 		vector<Stmt> loop_body;
-		loop_body.push_back(statement());
-		loop_body.push_back(Expression(std::move(increment)));
+		loop_body.emplace_back(statement());
+		loop_body.emplace_back(Expression(std::move(increment)));
 
 		vector<Stmt> for_block;
 		for_block.push_back(std::move(initializer));
@@ -408,6 +420,11 @@ Stmt Parser::declaration() {
 
 Stmt Parser::class_declaration() {
 	Token name = consume(IDENTIFIER, "Expect class name.");
+	optional<Variable> superclass = std::nullopt;
+	if (match(LESS)) {
+		consume(IDENTIFIER, "Expect superclass name.");
+		superclass.emplace(previous());
+	}
 	consume(LEFT_BRACE, "Expect '{' before class body.");
 	
 	vector<Function> methods;
@@ -416,7 +433,7 @@ Stmt Parser::class_declaration() {
 	}
 	
 	consume(RIGHT_BRACE, "Expect '}' after class body.");
-	return Class(name, std::move(methods));
+	return Class(name, superclass, std::move(methods));
 }
 
 Stmt Parser::var_declaration() {

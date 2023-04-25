@@ -48,7 +48,10 @@ public:
 	
 	// overloading to const Expr & creates a copy on the stack??? doesn't work
 	void resolve(const Assign &expr, int depth);
+	void resolve(const Super &expr, int depth);
+	void resolve(const This &expr, int depth);
 	void resolve(const Variable &expr, int depth);
 	// using const Expr &expr instead of const Variable &expr creates a temporary on the stack?
+	LoxObject look_up_variable(Token name, const This &expr);
 	LoxObject look_up_variable(Token name, const Variable &expr);
 };

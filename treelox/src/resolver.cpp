@@ -1,12 +1,11 @@
 #include "resolver.h"
 
 using std::string;
-using std::unordered_map;
 using std::vector;
 
 using enum FunctionType;
 
-Resolver::Resolver(Interpreter &it): it(it), current_function(NONE) {}
+Resolver::Resolver(Interpreter &it): it(it) {}
 
 struct ResolverExprVisitor {
 	Resolver &rs;
@@ -49,6 +48,21 @@ struct ResolverExprVisitor {
 		rs.resolve_expr(*expr.object);
 		rs.resolve_expr(*expr.value);
 	}
+	void operator()(const Super &expr) {
+		if (rs.current_class == ClassType::NONE) {
+			Lox::error(expr.keyword, "Can't use 'super' outside of a class.");
+		}
+		else if (rs.current_class != ClassType::SUBCLASS) {
+			Lox::error(expr.keyword, "Can't super 'super' in a class with no superclass.");
+		}
+		rs.resolve_local(expr, expr.keyword);
+	}
+	void operator()(const This &expr) {
+		if (rs.current_class == ClassType::NONE) {
+			Lox::error(expr.keyword, "Can't use 'this' outside of a class.");
+		}
+		rs.resolve_local(expr, expr.keyword);
+	}
 	void operator()(const Unary &expr) {
 		rs.resolve_expr(*expr.right);
 	}
@@ -74,11 +88,28 @@ struct ResolverStmtVisitor {
 		rs.end_scope();
 	}
 	void operator()(const Class &stmt) {
+		ClassType enclosing_class(rs.current_class);
+		rs.current_class = ClassType::CLASS;
 		rs.declare(stmt.name);
 		rs.define(stmt.name);
-		for (const Function &method : stmt.methods) {
-			rs.resolve_function(method, METHOD);
+		if (stmt.superclass.has_value() && (stmt.name.lexeme == stmt.superclass.value().name.lexeme)) {
+			Lox::error(stmt.superclass.value().name, "A class can't inherit from itself.");
 		}
+		if (stmt.superclass.has_value()) {
+			rs.current_class = ClassType::SUBCLASS;
+			rs.begin_scope();
+			rs.scopes.back()["super"] = true;
+		}
+		rs.begin_scope();
+		rs.scopes.back()["this"] = true;
+		for (const Function &method : stmt.methods) {
+			rs.resolve_function(method, method.name.lexeme == "init" ? INITIALIZER : METHOD);
+		}
+		rs.end_scope();
+		if (stmt.superclass.has_value()) {
+			rs.end_scope();
+		}
+		rs.current_class = enclosing_class;
 	}
 	void operator()(const Expression &stmt) {
 		rs.resolve_expr(stmt.expression);
@@ -103,6 +134,9 @@ struct ResolverStmtVisitor {
 			Lox::error(stmt.keyword, "Can't return from top-level code.");
 		}
 		if (!std::holds_alternative<std::monostate>(stmt.value)) {
+			if (rs.current_function == INITIALIZER) {
+				Lox::error(stmt.keyword, "Can't return a value from an initializer.");
+			}
 			rs.resolve_expr(stmt.value);
 		}
 	}
@@ -156,6 +190,26 @@ void Resolver::resolve_block(const vector<Stmt> &statements) {
 }
 
 void Resolver::resolve_local(const Assign &expr, const Token &name) {
+	for (int i=scopes.size()-1; i>=0; i--) {
+		if (scopes[i].contains(name.lexeme)) {
+			//std::cout << "resolve local " << &expr << std::endl;
+			it.resolve(expr, scopes.size() - 1 - i);
+			return;
+		}
+	}
+}
+
+void Resolver::resolve_local(const Super &expr, const Token &name) {
+	for (int i=scopes.size()-1; i>=0; i--) {
+		if (scopes[i].contains(name.lexeme)) {
+			//std::cout << "resolve local " << &expr << std::endl;
+			it.resolve(expr, scopes.size() - 1 - i);
+			return;
+		}
+	}
+}
+
+void Resolver::resolve_local(const This &expr, const Token &name) {
 	for (int i=scopes.size()-1; i>=0; i--) {
 		if (scopes[i].contains(name.lexeme)) {
 			//std::cout << "resolve local " << &expr << std::endl;

@@ -15,8 +15,8 @@ struct Interpreter::EvaluateExpr {
 	Interpreter &it;
 	EvaluateExpr(Interpreter &it): it(it) {}
 
-	LoxObject operator()(std::monostate) {
-		return std::monostate{};
+	LoxObject operator()(std::monostate m) {
+		return m;
 	}
 	LoxObject operator()(const Assign &expr) {
 		LoxObject value = it.evaluate(*expr.value);
@@ -101,14 +101,14 @@ struct Interpreter::EvaluateExpr {
 		if (holds_alternative<shared_ptr<LoxClass>>(callee)) {
 			// No long valid due to using shared_ptr
 			// watch out for callee being deallocated from stack if rewriting!
-			return get<shared_ptr<LoxClass>>(callee)->operator()(it, arguments);
+			return make_shared<LoxInstance>((*get<shared_ptr<LoxClass>>(callee))(it, arguments));
 		}
 		throw RuntimeError(expr.paren, "Can only call functions and classes.");
 	}
 	LoxObject operator()(const Get &expr) {
 		LoxObject obj = it.evaluate(*expr.object);
-		if (holds_alternative<LoxInstance>(obj)) {
-			return get<LoxInstance>(obj).get(expr.name);
+		if (holds_alternative<shared_ptr<LoxInstance>>(obj)) {
+			return get<shared_ptr<LoxInstance>>(obj)->get(expr.name);
 		}
 		throw RuntimeError(expr.name, "Only instances have properties.");
 	}
@@ -131,13 +131,28 @@ struct Interpreter::EvaluateExpr {
 	}
 	LoxObject operator()(const Set &expr) {
 		LoxObject obj(it.evaluate(*expr.object));
-		if (!holds_alternative<LoxInstance>(obj)) {
+		if (!holds_alternative<shared_ptr<LoxInstance>>(obj)) {
 			throw RuntimeError(expr.name, "Only instances have fields.");
 		}
 		
 		LoxObject value(it.evaluate(*expr.value));
-		get<LoxInstance>(obj).set(expr.name, value);
+		get<shared_ptr<LoxInstance>>(obj)->set(expr.name, value);
 		return value;
+	}
+	LoxObject operator()(const Super &expr) {
+		int distance = it.locals[(Variable *) const_cast<Super *>(&expr)];
+
+		auto superclass = get<shared_ptr<LoxClass>>(it.environment->get_at(distance, "super"));
+		auto obj = get<shared_ptr<LoxInstance>>(it.environment->get_at(distance-1, "this"));
+
+		auto opt_method = superclass->find_method(expr.method.lexeme);
+		if (!opt_method.has_value()) {
+			throw RuntimeError(expr.method, "Undefined property '" + expr.method.lexeme + "'.");
+		}
+		return opt_method.value().bind(obj.get());
+	}
+	LoxObject operator()(const This &expr) {
+		return it.look_up_variable(expr.keyword, expr);
 	}
 	LoxObject operator()(const Unary &expr) {
 		LoxObject right = it.evaluate(*expr.right);
@@ -168,12 +183,31 @@ struct Interpreter::EvaluateStmt {
 		it.execute_block(stmt.statements, make_unique<Environment>(it.environment).get());
 	}
 	void operator()(const Class &stmt) {
+		LoxObject superclass = shared_ptr<LoxClass>(nullptr);
+		if (stmt.superclass.has_value()) {
+			superclass = it.evaluate(stmt.superclass.value());
+			if (!holds_alternative<shared_ptr<LoxClass>>(superclass)) {
+				throw RuntimeError(stmt.superclass.value().name, "Superclass must be a class.");
+			}
+		}
 		it.environment->define_uninitialized(stmt.name.lexeme);
+		shared_ptr<Environment> super_closure = nullptr;
+		if (stmt.superclass.has_value()) {
+			super_closure = make_shared<Environment>(it.environment);
+			it.environment = super_closure.get();
+			it.environment->define("super", superclass);
+		}
 		unordered_map<string, LoxFunction> methods;
 		for (const Function &method : stmt.methods) {
-			methods.emplace(method.name.lexeme, LoxFunction(&method, it.environment));
+			LoxFunction method_instance(&method, it.environment);
+			method_instance.is_initializer = method.name.lexeme == "init";
+			methods.emplace(method.name.lexeme, method_instance);
 		}
-		auto klass = make_shared<LoxClass>(stmt.name.lexeme, methods);
+		auto klass = make_shared<LoxClass>(stmt.name.lexeme, get<shared_ptr<LoxClass>>(superclass), methods);
+		if (get<shared_ptr<LoxClass>>(superclass) != nullptr) {
+			it.environment = it.environment->enclosing;
+			klass->super_closure = super_closure;
+		}
 		it.environment->assign(stmt.name, klass);
 	}
 	void operator()(const Expression &stmt) {
@@ -298,27 +332,45 @@ void Interpreter::repl_interpret(const std::vector<Stmt> &statements) {
 		for (const Stmt &statement : statements) {
 			if (holds_alternative<Expression>(statement)) {
 				LoxObject value = evaluate(get<Expression>(statement).expression);
-				//std::cout << to_string(value) << "\n";
+				std::cout << to_string(value) << "\n";
 			}
-			else {
-				execute(statement);
-			}
+			execute(statement);
 		}
 	}
 	catch (RuntimeError &err) {
 		Lox::runtime_error(err);
 	}
 }
+
 void Interpreter::resolve(const Assign &expr, int depth) {
 	Variable *key = (Variable *) const_cast<Assign *>(&expr);
 	locals[key] = depth;
 	//std::cout << "binding expr " << to_string(expr.name) << " to " << key << " depth " << depth << " addr" << &expr << std::endl;
 }
 
+void Interpreter::resolve(const Super &expr, int depth) {
+	Variable *key = (Variable *) const_cast<Super *>(&expr);
+	locals[key] = depth;
+}
+
+void Interpreter::resolve(const This &expr, int depth) {
+	Variable *key = (Variable *) const_cast<This *>(&expr);
+	locals[key] = depth;
+}
+
 void Interpreter::resolve(const Variable &expr, int depth) {
 	Variable *key = (Variable *) const_cast<Variable *>(&expr);
 	locals[key] = depth;
 	//std::cout << "binding expr " << to_string(expr) << " to " << key << " depth " << depth << " addr " << &expr << std::endl;
+}
+
+LoxObject Interpreter::look_up_variable(Token name, const This &expr) {
+	if (locals.contains((Variable *) const_cast<This *>(&expr))) {
+		return environment->get_at(locals[(Variable *)const_cast<This *>(&expr)], name.lexeme);
+	}
+	else {
+		return globals.get(name);
+	}
 }
 
 LoxObject Interpreter::look_up_variable(Token name, const Variable &expr) {

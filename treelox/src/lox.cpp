@@ -65,7 +65,7 @@ namespace Lox {
 		interpreter.interpret(statements);
 	}
 
-	void repl_run(string_view src) {
+	void repl_run(string_view src, Resolver &resolver) {
 		Scanner scanner(src);
 		vector<Token> tokens = scanner.scan_tokens();
 
@@ -74,6 +74,12 @@ namespace Lox {
 		if (had_error) {
 			return;
 		}
+
+		resolver.resolve_block(statements);
+		if (had_error) {
+			return;
+		}
+
 		interpreter.repl_interpret(statements);
 	}
 
@@ -92,6 +98,7 @@ namespace Lox {
 	}
 
 	void run_prompt() {
+		Resolver resolver(interpreter);
 		while (true) {
 			std::cout << "> ";
 			std::string line;
@@ -99,7 +106,7 @@ namespace Lox {
 			if (line.empty()) {
 				break;
 			}
-			repl_run(line);
+			repl_run(line, resolver);
 			std::cout << "\n";
 			had_error = false;
 		}

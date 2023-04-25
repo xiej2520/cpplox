@@ -17,8 +17,8 @@ struct LoxInstance;
 using LoxObject = std::variant<std::monostate, int, double, bool, std::string,
 	LoxFunction,
 	NativeFunction,
-	std::shared_ptr<LoxClass>, // classes need to be kept alive after they're reassigned
-	LoxInstance
+	std::shared_ptr<LoxClass>,   // classes need to be kept alive after they're reassigned
+	std::shared_ptr<LoxInstance> // LoxInstances are passed and assigned by reference
 >;
 
 struct Assign;
@@ -38,8 +38,12 @@ struct LoxFunction {
 	const Function *declaration; // non-owning
 	// lifetime of closure needs to at least as long as LoxFunction - I think this works?
 	Environment *closure;
+	// for methods, need to carry environment where 'this' is bound to object
+	std::shared_ptr<Environment> bound_closure;
 	size_t arity;
+	bool is_initializer = false;
 	LoxFunction(const Function *declaration, Environment *closure);
+	LoxFunction bind(LoxInstance *instance);
 
 	LoxObject operator()(Interpreter &it, const std::vector<LoxObject> &args);
 	bool operator==(const LoxFunction &);
@@ -65,9 +69,12 @@ struct NativeFunction {
  */
 struct LoxClass: std::enable_shared_from_this<LoxClass> {
 	std::string name;
+	std::shared_ptr<LoxClass> superclass;
+	std::shared_ptr<Environment> super_closure;
 	std::unordered_map<std::string, LoxFunction> methods;
+	size_t arity;
 
-	LoxClass(std::string_view name, std::unordered_map<std::string, LoxFunction> methods);
+	LoxClass(std::string_view name, std::shared_ptr<LoxClass> superclass, std::unordered_map<std::string, LoxFunction> methods);
 	LoxInstance operator()(Interpreter &it, const std::vector<LoxObject> &args);
 	
 	std::optional<LoxFunction> find_method(const std::string &method_name);	
@@ -78,7 +85,11 @@ struct LoxClass: std::enable_shared_from_this<LoxClass> {
 
 struct Token;
 
-struct LoxInstance {
+/**
+ * LoxInstances are passed by reference, therefore use shared_ptr
+ * to track LoxInstances.
+*/
+struct LoxInstance: std::enable_shared_from_this<LoxInstance> {
 	std::shared_ptr<LoxClass> klass;
 	std::unordered_map<std::string, LoxObject> fields;
 	LoxInstance(std::shared_ptr<LoxClass> klass);

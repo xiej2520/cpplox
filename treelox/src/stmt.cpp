@@ -1,5 +1,6 @@
 #include "stmt.h"
 
+using std::optional;
 using std::unique_ptr;
 using std::vector;
 
@@ -15,7 +16,8 @@ static_assert(std::is_move_constructible_v<While>, "not move constructible");
 
 Block::Block(vector<Stmt> statements): statements(std::move(statements)) {}
 
-Class::Class(Token name, vector<Function> methods): name(std::move(name)), methods(std::move(methods)) {}
+Class::Class(Token name, optional<Variable> superclass, vector<Function> methods):
+	name(std::move(name)), superclass(std::move(superclass)), methods(std::move(methods)) {}
 
 Expression::Expression(Expr expression): expression(std::move(expression)) {}
 
@@ -30,7 +32,7 @@ Print::Print(Expr expression): expression(std::move(expression)) {}
 Return::Return(Token keyword, Expr value):
 	keyword(std::move(keyword)), value(std::move(value)) {}
 
-Var::Var(Token name, std::optional<Expr> initializer):
+Var::Var(Token name, optional<Expr> initializer):
 	name(std::move(name)), initializer(std::move(initializer)) {}
 
 While::While(Expr condition, unique_ptr<Stmt> body):

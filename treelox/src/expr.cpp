@@ -27,6 +27,10 @@ Logical::Logical(unique_ptr<Expr> left, Token op, unique_ptr<Expr> right):
 Set::Set(unique_ptr<Expr> object, Token name, unique_ptr<Expr> value):
 	object(move(object)), name(move(name)), value(move(value)) {};
 
+Super::Super(Token keyword, Token method): keyword(move(keyword)), method(move(method)) {}
+
+This::This(Token keyword): keyword(move(keyword)) {}
+
 Unary::Unary(Token op, unique_ptr<Expr> right): op(move(op)), right(move(right)) {}
 
 Variable::Variable(Token name): name(move(name)) {}

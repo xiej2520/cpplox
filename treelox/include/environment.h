@@ -15,7 +15,7 @@ struct Environment {
 	Environment *enclosing; // NON-OWNING raw pointers
 	std::unordered_map<std::string, LoxObject> values;
 	std::unordered_set<std::string> uninitialized_values;
-	
+
 	Environment();
 	Environment(Environment *enclosing);
 

@@ -66,8 +66,9 @@ class Parser {
 	Stmt print_statement();
 	Stmt return_statement();
 	Stmt expression_statement();
-	Stmt function(std::string kind);
+	Stmt function(const std::string &kind);
 	Stmt declaration();
+	Stmt class_declaration();
 	Stmt var_declaration();
 
 public:

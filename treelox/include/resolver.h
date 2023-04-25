@@ -7,7 +7,8 @@
 
 enum class FunctionType {
 	NONE,
-	FUNCTION
+	FUNCTION,
+	METHOD
 };
 
 struct Resolver {

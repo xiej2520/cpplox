@@ -3,17 +3,19 @@
 using std::unique_ptr;
 using std::vector;
 
-static_assert(std::is_move_constructible<Stmt>::value, "not move constructible");
-static_assert(std::is_move_constructible<Block>::value, "not move constructible");
-static_assert(std::is_move_constructible<Expression>::value, "not move constructible");
-static_assert(std::is_move_constructible<Function>::value, "not move constructible");
-static_assert(std::is_move_constructible<If>::value, "not move constructible");
-static_assert(std::is_move_constructible<Print>::value, "not move constructible");
-static_assert(std::is_move_constructible<Return>::value, "not move constructible");
-static_assert(std::is_move_constructible<Var>::value, "not move constructible");
-static_assert(std::is_move_constructible<While>::value, "not move constructible");
+static_assert(std::is_move_constructible_v<Stmt>, "not move constructible");
+static_assert(std::is_move_constructible_v<Block>, "not move constructible");
+static_assert(std::is_move_constructible_v<Expression>, "not move constructible");
+static_assert(std::is_move_constructible_v<Function>, "not move constructible");
+static_assert(std::is_move_constructible_v<If>, "not move constructible");
+static_assert(std::is_move_constructible_v<Print>, "not move constructible");
+static_assert(std::is_move_constructible_v<Return>, "not move constructible");
+static_assert(std::is_move_constructible_v<Var>, "not move constructible");
+static_assert(std::is_move_constructible_v<While>, "not move constructible");
 
 Block::Block(vector<Stmt> statements): statements(std::move(statements)) {}
+
+Class::Class(Token name, vector<Function> methods): name(std::move(name)), methods(std::move(methods)) {}
 
 Expression::Expression(Expr expression): expression(std::move(expression)) {}
 

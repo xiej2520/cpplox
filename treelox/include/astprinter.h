@@ -34,6 +34,9 @@ struct ExprToString {
 		}
 		return res + ")";
 	}
+	std::string operator()(const Get &expr) {
+		return to_string(*expr.object) + "." + to_string(expr.name);
+	}
 	std::string operator()(const Grouping &expr) {
 		return parenthesize("group", {expr.expression.get()});
 	}
@@ -43,6 +46,9 @@ struct ExprToString {
 	}
 	std::string operator()(const Logical &expr) {
 		return parenthesize(expr.op.lexeme, {expr.left.get(), expr.right.get()});
+	}
+	std::string operator()(const Set &expr) {
+		return to_string(*expr.object) + "." + to_string(expr.name) + " <- " + to_string(*expr.value);
 	}
 	std::string operator()(const Unary &expr) {
 		return parenthesize(expr.op.lexeme, {expr.right.get()});
@@ -64,6 +70,9 @@ struct StmtToString {
 			res += "\t" + std::visit(StmtToString(), s) + "\n";
 		}
 		return res + "}";
+	}
+	std::string operator()(const Class &stmt) {
+		return "Class: " + to_string(stmt.name);
 	}
 	std::string operator()(const Expression &stmt) {
 		return "Expression: " + std::visit(ExprToString(), stmt.expression);

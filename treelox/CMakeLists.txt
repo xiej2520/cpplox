@@ -18,7 +18,7 @@ else()
     # -gdwarf-4 for valgrind?
     add_compile_options("-Wall" "-Wextra" "-Werror" "$<$<CONFIG:Debug>:-gdwarf-4>" "$<$<CONFIG:Release>:-O3>")
     if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-        add_compile_options("$<$<CONFIG:Debug>:-g3>")
+        add_compile_options("$<$<CONFIG:Debug>:-g3>" "-fdiagnostics-format=clang" "-ftemplate-backtrace-limit=1024" "-ftemplate-backtrace-limit=32")
         #add_compile_options("-stdlib=libc++")
     else()
     endif()

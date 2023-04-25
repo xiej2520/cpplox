@@ -1,0 +1,21 @@
+fun rec(n) {
+	if (n <= 0) {
+		return 0;
+	}
+	return rec(n-1);
+}
+
+
+var s = 959; // Segmentation fault from stack overflow if too high
+
+var start = clock();
+rec(s);
+var end = clock();
+print "Recursive:";
+print end - start;
+
+start = clock();
+for (var i=s; i > 0; i = i - 1) { }
+end = clock();
+print "Iterative:";
+print end - start;

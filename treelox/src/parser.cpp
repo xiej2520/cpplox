@@ -11,9 +11,6 @@ using std::vector;
 
 constexpr size_t MAX_ARGS = 255;
 
-// for TokenLiteral conversion
-template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
-
 Parser::Parser(span<Token> tokens): tokens(tokens.begin(), tokens.end()) {}
 
 bool Parser::match(const vector<TokenType> &types) {
@@ -111,8 +108,12 @@ Expr Parser::assignment() {
 		Expr value(assignment());
 		
 		if (holds_alternative<Variable>(expr)) {
-			Token name = std::get<Variable>(expr).name;
+			Token name = get<Variable>(expr).name;
 			return Assign(name, make_unique<Expr>(std::move(value)));
+		}
+		if (holds_alternative<Get>(expr)) { // convert Get to Set if it is on the left of =
+			Get &get_expr(get<Get>(expr));
+			return Set(std::move(get_expr.object), get_expr.name, make_unique<Expr>(std::move(value)));
 		}
 		Lox::error(equals, "Invalid assignment target.");
 	}
@@ -190,13 +191,20 @@ Expr Parser::unary() {
 
 Expr Parser::call() {
 	auto expr = make_unique<Expr>(primary());
-	while (true) {
+	while (true) { // allow chained call Expr
 		if (match(LEFT_PAREN)) {
-			return finish_call(std::move(expr));
+			expr = make_unique<Expr>(finish_call(std::move(expr)));
 		}
-		Expr res(std::move(*expr));
-		return res;
+		else if (match(DOT)) {
+			Token name = consume(IDENTIFIER, "Expect property name after '.'.");
+			expr = make_unique<Expr>(Get(std::move(expr), name));
+		}
+		else {
+			break;
+		}
 	}
+	Expr res(std::move(*expr));
+	return res;
 }
 
 Expr Parser::finish_call(std::unique_ptr<Expr> callee) {
@@ -362,7 +370,7 @@ Stmt Parser::expression_statement() {
 	return Expression(std::move(expr));
 }
 
-Stmt Parser::function(string kind) {
+Stmt Parser::function(const string &kind) {
 	Token name = consume(IDENTIFIER, "Expect " + kind + " name.");
 	consume(LEFT_PAREN, "Expect '(' after " + kind + " name.");
 	vector<Token> parameters;
@@ -381,6 +389,9 @@ Stmt Parser::function(string kind) {
 
 Stmt Parser::declaration() {
 	try {
+		if (match(CLASS)) {
+			return class_declaration();
+		}
 		if (match(FUN)) {
 			return function("function");
 		}
@@ -393,6 +404,19 @@ Stmt Parser::declaration() {
 		synchronize();
 		return std::monostate{};
 	}
+}
+
+Stmt Parser::class_declaration() {
+	Token name = consume(IDENTIFIER, "Expect class name.");
+	consume(LEFT_BRACE, "Expect '{' before class body.");
+	
+	vector<Function> methods;
+	while (!check(RIGHT_BRACE) && !is_at_end()) {
+		methods.emplace_back(std::move(get<Function>(function("method"))));
+	}
+	
+	consume(RIGHT_BRACE, "Expect '}' after class body.");
+	return Class(name, std::move(methods));
 }
 
 Stmt Parser::var_declaration() {

@@ -7,6 +7,7 @@
 #include <vector>
 
 struct Block;
+struct Class;
 struct Expression;
 struct Function;
 struct If;
@@ -19,6 +20,7 @@ using Stmt = std::variant
 <
 	std::monostate,
 	Block,
+	Class,
 	Expression,
 	Function,
 	If,
@@ -33,6 +35,11 @@ struct Block {
 	Block(std::vector<Stmt> statements);
 };
 
+struct Class {
+	const Token name;
+	std::vector<Function> methods;
+	Class(Token name, std::vector<Function> methods);
+};
 
 struct Expression {
 	Expr expression;
@@ -44,6 +51,15 @@ struct Function {
 	std::vector<Token> params;
 	std::vector<Stmt> body;
 	Function(Token name, std::vector<Token> params, std::vector<Stmt> body);
+	
+	/* insane bug with Parser::class_declaration where converting a Stmt to Function
+		causes emplace_back to try using the copy constructor of Function even when
+		std::move is used */
+	Function(const Function &) = delete;
+	Function &operator=(const Function &) = delete;
+	Function(Function &&) = default;
+	Function &operator=(Function &&) = delete;
+	~Function() = default;
 };
 
 struct If {

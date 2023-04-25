@@ -9,7 +9,7 @@ public:
 	const Token token;
 	std::string msg; // error message
 	explicit RuntimeError(Token token, const char *msg);
-	explicit RuntimeError(Token token, std::string &msg);
+	explicit RuntimeError(Token token, const std::string &msg);
 	// virtual for subclassing
 	virtual ~RuntimeError() noexcept {}
 	virtual const char *what() const noexcept {

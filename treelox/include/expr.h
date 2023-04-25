@@ -9,9 +9,11 @@
 struct Assign;
 struct Binary;
 struct Call;
+struct Get;
 struct Grouping;
 struct Literal;
 struct Logical;
+struct Set;
 struct Unary;
 struct Variable;
 
@@ -21,9 +23,11 @@ using Expr = std::variant
 	Assign,
 	Binary,
 	Call,
+	Get,
 	Grouping,
 	Literal,
 	Logical,
+	Set,
 	Unary,
 	Variable
 >;
@@ -54,6 +58,12 @@ struct Call {
 	Call(std::unique_ptr<Expr> callee, Token paren, std::vector<Expr> arguments);
 };
 
+struct Get {
+	std::unique_ptr<Expr> object;
+	const Token name;
+	Get(std::unique_ptr<Expr> object, Token name);
+};
+
 struct Grouping {
 	std::unique_ptr<Expr> expression;
 	Grouping(std::unique_ptr<Expr> expression);
@@ -69,6 +79,13 @@ struct Logical {
 	const Token op;
 	std::unique_ptr<Expr> right;
 	Logical(std::unique_ptr<Expr> left, Token op, std::unique_ptr<Expr> right);
+};
+
+struct Set {
+	std::unique_ptr<Expr> object;
+	const Token name;
+	std::unique_ptr<Expr> value;
+	Set(std::unique_ptr<Expr> object, Token name, std::unique_ptr<Expr> value);
 };
 
 struct Unary {

@@ -3,6 +3,8 @@
 using std::make_unique;
 using std::holds_alternative;
 using std::get;
+using std::string;
+using std::unordered_map;
 using std::vector;
 
 using enum TokenType;
@@ -35,6 +37,7 @@ struct Interpreter::EvaluateExpr {
 				if (holds_alternative<std::string>(left) && holds_alternative<std::string>(right)) {
 					return get<std::string>(left) + std::get<std::string>(right);
 				}
+				// NO TYPE COERCION
 				throw RuntimeError(expr.op, "Operands must be two numbers or two strings.");
 			case MINUS:
 				it.check_num_operands(expr.op, left, right);
@@ -48,7 +51,6 @@ struct Interpreter::EvaluateExpr {
 			case STAR:
 				it.check_num_operands(expr.op, left, right);
 				return get<double>(left) * std::get<double>(right);
-				// NO TYPE COERCION
 			case GREATER:
 				it.check_num_operands(expr.op, left, right);
 				return get<double>(left) > std::get<double>(right);
@@ -94,7 +96,18 @@ struct Interpreter::EvaluateExpr {
 			}
 			return get<NativeFunction>(callee).operator()(it, arguments);
 		}
+		if (holds_alternative<LoxClass>(callee)) {
+			// watch out for callee being deallocated from stack if rewriting!
+			return get<LoxClass>(callee).operator()(it, arguments);
+		}
 		throw RuntimeError(expr.paren, "Can only call functions and classes.");
+	}
+	LoxObject operator()(const Get &expr) {
+		LoxObject obj = it.evaluate(*expr.object);
+		if (holds_alternative<LoxInstance>(obj)) {
+			return get<LoxInstance>(obj).get(expr.name);
+		}
+		throw RuntimeError(expr.name, "Only instances have properties.");
 	}
 	LoxObject operator()(const Grouping &expr) {
 		return it.evaluate(*expr.expression);
@@ -113,6 +126,16 @@ struct Interpreter::EvaluateExpr {
 		}
 		return it.evaluate(*expr.right);
 	}
+	LoxObject operator()(const Set &expr) {
+		LoxObject obj(it.evaluate(*expr.object));
+		if (!holds_alternative<LoxInstance>(obj)) {
+			throw RuntimeError(expr.name, "Only instances have fields.");
+		}
+		
+		LoxObject value(it.evaluate(*expr.value));
+		get<LoxInstance>(obj).set(expr.name, value);
+		return value;
+	}
 	LoxObject operator()(const Unary &expr) {
 		LoxObject right = it.evaluate(*expr.right);
 		switch (expr.op.type) {
@@ -127,7 +150,7 @@ struct Interpreter::EvaluateExpr {
 		return std::monostate{}; // unreachable
 	}
 	LoxObject operator()(const Variable &expr) {
-	//std::cout << "Alooking up variable " << to_string(expr) << " |" << &expr << std::endl;
+	std::cout << "Alooking up variable " << expr.name.lexeme << " |" << &expr << std::endl;
 		//std::cout << "got variable " << to_string(it.look_up_variable(expr.name, expr)) << " from lookup" << std::endl;
 		return it.look_up_variable(expr.name, expr);
 	}
@@ -140,6 +163,15 @@ struct Interpreter::EvaluateStmt {
 	void operator()(std::monostate) {}
 	void operator()(const Block &stmt) {
 		it.execute_block(stmt.statements, make_unique<Environment>(it.environment).get());
+	}
+	void operator()(const Class &stmt) {
+		it.environment->define_uninitialized(stmt.name.lexeme);
+		unordered_map<string, LoxFunction> methods;
+		for (const Function &method : stmt.methods) {
+			methods.emplace(method.name.lexeme, LoxFunction(&method, it.environment));
+		}
+		LoxClass klass(stmt.name.lexeme, methods);
+		it.environment->assign(stmt.name, klass);
 	}
 	void operator()(const Expression &stmt) {
 		it.evaluate(stmt.expression);
@@ -186,6 +218,15 @@ struct Interpreter::EvaluateStmt {
 Interpreter::Interpreter(): environment(&globals) {
 	globals.define("clock", NativeFunction(0, [](Interpreter &, const std::vector<LoxObject> &) {
 		return static_cast<double>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count());
+	}));
+	globals.define("str", NativeFunction(1, [](Interpreter &, const std::vector<LoxObject> args) {
+		if (args.size() != 1 || (!holds_alternative<double>(args[0]) && !holds_alternative<int>(args[0]))) {
+			throw RuntimeError(Token(NIL, "str", std::monostate{}, 0), "Expected one number as argument.");
+		}
+		if (holds_alternative<double>(args[0])) {
+			return to_string(get<double>(args[0]));
+		}
+		return to_string(get<int>(args[0]));
 	}));
 }
 
@@ -289,4 +330,4 @@ LoxObject Interpreter::look_up_variable(Token name, const Variable &expr) {
 }
 
 RuntimeError::RuntimeError(Token token, const char *msg): token(token), msg(msg) { }
-RuntimeError::RuntimeError(Token token, std::string &msg): token(token), msg(msg) { }
+RuntimeError::RuntimeError(Token token, const std::string &msg): token(token), msg(msg) { }

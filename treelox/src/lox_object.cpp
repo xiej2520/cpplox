@@ -5,7 +5,12 @@
 
 using std::function;
 using std::make_unique;
+using std::optional;
+using std::string;
+using std::string_view;
+using std::unordered_map;
 using std::vector;
+
 
 LoxFunction::LoxFunction(const Function *declaration, Environment *closure):
 	declaration(declaration), closure(closure), arity(declaration->params.size()) { }
@@ -48,14 +53,68 @@ bool operator==(const NativeFunction &, const NativeFunction &) {
 	return false;
 }
 
+
+LoxClass::LoxClass(string_view name, unordered_map<string, LoxFunction> methods):
+	name(name), methods(std::move(methods)) {}
+
+LoxInstance LoxClass::operator()(Interpreter &, const std::vector<LoxObject> &) {
+	return LoxInstance(*this);
+}
+
+std::optional<LoxFunction> LoxClass::find_method(const string &method_name) {
+	if (methods.contains(method_name)) {
+		return methods.at(method_name);
+	}
+	return std::nullopt;
+}
+
+
+// temporary
+bool LoxClass::operator==(const LoxClass &) {
+	return false;
+}
+bool operator==(const LoxClass &, const LoxClass &) {
+	return false;
+}
+
+
+LoxInstance::LoxInstance(LoxClass &klass): klass(&klass) { }
+
+LoxObject LoxInstance::get(const Token &name) {
+	if (fields.contains(name.lexeme)) {
+		return fields[name.lexeme];
+	}
+	optional<LoxFunction> method = klass->find_method(name.lexeme);
+	if (method.has_value()) {
+		return method.value();
+	}
+
+	throw RuntimeError(name, "Undefined property '" + name.lexeme + "'.");
+}
+
+void LoxInstance::set(const Token &name, const LoxObject &value) {
+	fields[name.lexeme] = value;
+}
+
+// temporary
+bool LoxInstance::operator==(const LoxInstance &) {
+	return false;
+}
+bool operator==(const LoxInstance &, const LoxInstance &) {
+	return false;
+}
+
+
 struct LoxObjToString {
-	std::string operator()(std::monostate) const { return "nil"; }
-	std::string operator()(int i) const { return std::to_string(i); }
-	std::string operator()(double d) const { return std::to_string(d); }
-	std::string operator()(bool b) const { return b ? "true" : "false"; }
-	std::string operator()(const std::string &s) const { return "\"" + s + "\""; }
-	std::string operator()(LoxFunction f) { return "<fn " + f.declaration->name.lexeme + ">"; }
-	std::string operator()(NativeFunction) { return "<native fn>"; }
+	string operator()(std::monostate) const { return "nil"; }
+	string operator()(int i) const { return std::to_string(i); }
+	string operator()(double d) const { return std::to_string(d); }
+	string operator()(bool b) const { return b ? "true" : "false"; }
+	string operator()(const string &s) const { return s; }
+	string operator()(LoxFunction f) { return "<fn " + f.declaration->name.lexeme + ">"; }
+	string operator()(NativeFunction) { return "<native fn>"; }
+	string operator()(const LoxClass &c) { return c.name; }
+	string operator()(const LoxInstance &o) { return o.klass->name + " instance"; }
 };
 
 std::string to_string(const LoxObject &o) {

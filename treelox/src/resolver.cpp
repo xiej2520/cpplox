@@ -18,6 +18,7 @@ struct ResolverExprVisitor {
 	void operator()(const Assign &expr) {
 		rs.resolve_expr(*expr.value);
 		Assign &e = const_cast<Assign &>(expr);
+		// actually resolve it
 		rs.resolve_local(e, expr.name);
 	}
 	void operator()(const Binary &expr) {
@@ -30,6 +31,10 @@ struct ResolverExprVisitor {
 			rs.resolve_expr(argument);
 		}
 	}
+	void operator()(const Get &expr) {
+		// property dispatch is dynamic
+		rs.resolve_expr(*expr.object);
+	}
 	void operator()(const Grouping &expr) {
 		rs.resolve_expr(*expr.expression);
 	}
@@ -40,6 +45,10 @@ struct ResolverExprVisitor {
 		rs.resolve_expr(*expr.left);
 		rs.resolve_expr(*expr.right);
 	}
+	void operator()(const Set &expr) {
+		rs.resolve_expr(*expr.object);
+		rs.resolve_expr(*expr.value);
+	}
 	void operator()(const Unary &expr) {
 		rs.resolve_expr(*expr.right);
 	}
@@ -47,6 +56,7 @@ struct ResolverExprVisitor {
 		if (!rs.scopes.empty() && rs.scopes.back().contains(expr.name.lexeme)  && !rs.scopes.back()[expr.name.lexeme]) {
 			Lox::error(expr.name, "Can't read local variable in its own initializer.");
 		}
+		// actually resolve it
 		rs.resolve_local(expr, expr.name);
 	}
 };
@@ -62,6 +72,13 @@ struct ResolverStmtVisitor {
 		rs.begin_scope();
 		rs.resolve_block(stmt.statements);
 		rs.end_scope();
+	}
+	void operator()(const Class &stmt) {
+		rs.declare(stmt.name);
+		rs.define(stmt.name);
+		for (const Function &method : stmt.methods) {
+			rs.resolve_function(method, METHOD);
+		}
 	}
 	void operator()(const Expression &stmt) {
 		rs.resolve_expr(stmt.expression);
@@ -103,7 +120,7 @@ struct ResolverStmtVisitor {
 };
 
 void Resolver::begin_scope() {
-	scopes.push_back(unordered_map<string, bool>());
+	scopes.emplace_back();
 }
 
 void Resolver::end_scope() {

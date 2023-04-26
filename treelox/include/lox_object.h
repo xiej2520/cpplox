@@ -46,8 +46,8 @@ struct LoxFunction {
 	LoxFunction bind(LoxInstance *instance);
 
 	LoxObject operator()(Interpreter &it, const std::vector<LoxObject> &args);
-	bool operator==(const LoxFunction &);
-	friend bool operator==(const LoxFunction &, const LoxFunction &);
+	bool operator==(const LoxFunction &f);
+	friend bool operator==(const LoxFunction &f1, const LoxFunction &f2);
 };
 
 struct NativeFunction {

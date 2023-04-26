@@ -272,10 +272,13 @@ LoxObject Interpreter::evaluate(const Expr &expr) {
 }
 
 bool Interpreter::is_truthy(const LoxObject &obj) {
+	if (holds_alternative<std::monostate>(obj)) {
+		return false;
+	}
 	if (holds_alternative<bool>(obj)) {
 		return get<bool>(obj);
 	}
-	return false;
+	return true;
 }
 
 void Interpreter::check_num_operand(Token op, LoxObject operand) {
@@ -289,7 +292,7 @@ void Interpreter::check_num_operands(Token op, LoxObject left, LoxObject right) 
 	if (holds_alternative<double>(left) && holds_alternative<double>(right)) {
 		return;
 	}
-	throw RuntimeError(op, "Operands must be a numbers.");
+	throw RuntimeError(op, "Operands must be numbers.");
 }
 
 void Interpreter::execute(const Stmt &stmt) {
@@ -311,7 +314,9 @@ void Interpreter::execute_block(const vector<Stmt> &statements, Environment *new
 			execute(statement);
 		}
 	}
-	catch (RuntimeError &err) { }
+	catch (RuntimeError &err) {
+		Lox::runtime_error(err);
+	}
 	// RAII instead of finally block. Otherwise, must catch ReturnUnwind in LoxFunction
 }
 

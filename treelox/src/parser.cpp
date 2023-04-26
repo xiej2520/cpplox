@@ -80,7 +80,6 @@ void Parser::synchronize() {
 			return;
 		}
 		switch (peek().type) {
-			/*
 			case CLASS:
 			case FUN:
 			case VAR:
@@ -90,9 +89,8 @@ void Parser::synchronize() {
 			case PRINT:
 			case RETURN:
 				return;
-			*/
-			default: // ???
-				return;
+			default:
+				break;
 		}
 		advance();
 	}
@@ -214,9 +212,8 @@ Expr Parser::finish_call(std::unique_ptr<Expr> callee) {
 	vector<Expr> arguments;
 	if (!check(RIGHT_PAREN)) {
 		do {
-			// doesn't throw error, just reports it
 			if (arguments.size() >= MAX_ARGS) {
-				// error(peek(), "Can't have more than MAX_ARGS arguments.");
+				error(peek(), "Can't have more than 255 arguments.");
 			}
 			arguments.push_back(expression());
 		} while (match(COMMA));
@@ -388,7 +385,9 @@ Stmt Parser::function(const string &kind) {
 	vector<Token> parameters;
 	if (!check(RIGHT_PAREN)) {
 		do {
-			// allow any number of parameters
+			if (parameters.size() >= 255) {
+				error(peek(), "Can't have more than 255 parameters.");
+			}
 			parameters.push_back(
 				consume(IDENTIFIER, "Expect parameter name.")
 			);

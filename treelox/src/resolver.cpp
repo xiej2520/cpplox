@@ -53,7 +53,7 @@ struct ResolverExprVisitor {
 			Lox::error(expr.keyword, "Can't use 'super' outside of a class.");
 		}
 		else if (rs.current_class != ClassType::SUBCLASS) {
-			Lox::error(expr.keyword, "Can't super 'super' in a class with no superclass.");
+			Lox::error(expr.keyword, "Can't use 'super' in a class with no superclass.");
 		}
 		rs.resolve_local(expr, expr.keyword);
 	}
@@ -164,7 +164,7 @@ void Resolver::end_scope() {
 void Resolver::declare(Token name) {
 	if (scopes.empty()) return;
 	if (scopes.back().contains(name.lexeme)) {
-		Lox::error(name, "Already a variable with this name in this scope");
+		Lox::error(name, "Already a variable with this name in this scope.");
 	}
 	scopes.back()[name.lexeme] = false;
 }

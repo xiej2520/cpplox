@@ -3,6 +3,8 @@
 #include "lox_object.h"
 #include "stmt.h"
 
+#include <cmath>
+
 using std::function;
 using std::make_unique;
 using std::make_shared;
@@ -50,12 +52,12 @@ LoxObject LoxFunction::operator()(Interpreter &it, const vector<LoxObject> &args
 	return std::monostate{};
 }
 
-bool LoxFunction::operator==(const LoxFunction &) {
-	return false;
+bool LoxFunction::operator==(const LoxFunction &f) {
+	return declaration == f.declaration && closure == f.closure && bound_closure == f.bound_closure && arity == f.arity && is_initializer == f.is_initializer;
 }
 
-bool operator==(const LoxFunction &, const LoxFunction &) {
-	return false;
+bool operator==(const LoxFunction &f1, const LoxFunction &f2) {
+	return f1.declaration == f2.declaration && f1.closure == f2.closure && f1.bound_closure == f2.bound_closure && f1.arity == f2.arity && f1.is_initializer == f2.is_initializer;
 }
 
 NativeFunction::NativeFunction(size_t arity,
@@ -145,7 +147,12 @@ bool operator==(const LoxInstance &, const LoxInstance &) {
 struct LoxObjToString {
 	string operator()(std::monostate) const { return "nil"; }
 	string operator()(int i) const { return std::to_string(i); }
-	string operator()(double d) const { return std::to_string(d); }
+	string operator()(double d) const {
+		if (d == std::trunc(d)) {
+			return std::to_string(static_cast<int>(d)) + ".0";
+		}
+		return std::to_string(d);
+	}
 	string operator()(bool b) const { return b ? "true" : "false"; }
 	string operator()(const string &s) const { return s; }
 	string operator()(const LoxFunction &f) { return "<fn " + f.declaration->name.lexeme + ">"; }

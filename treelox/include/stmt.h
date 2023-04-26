@@ -37,9 +37,9 @@ struct Block {
 
 struct Class {
 	const Token name;
-	std::optional<Variable> superclass;
+	std::unique_ptr<Variable> superclass;
 	std::vector<Function> methods;
-	Class(Token name, std::optional<Variable> superclass, std::vector<Function> methods);
+	Class(Token name, std::unique_ptr<Variable> superclass, std::vector<Function> methods);
 };
 
 struct Expression {

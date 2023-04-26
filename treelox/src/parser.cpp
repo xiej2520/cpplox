@@ -10,6 +10,7 @@ using std::optional;
 using std::string;
 using std::string_view;
 using std::span;
+using std::unique_ptr;
 using std::vector;
 
 constexpr size_t MAX_ARGS = 255;
@@ -245,11 +246,6 @@ Expr Parser::primary() {
 		Token t = previous();
 		return std::visit(TokenLiteralConversion(t), t.literal);
 	}
-	if (match(LEFT_PAREN)) {
-		Expr expr(expression());
-		consume(RIGHT_PAREN, "Expect ')' after expression.");
-		return Grouping(make_unique<Expr>(std::move(expr)));
-	}
 	if (match(SUPER)) {
 		Token keyword = previous();
 		consume(DOT, "Expect '.' after 'super'.");
@@ -261,6 +257,11 @@ Expr Parser::primary() {
 	}
 	if (match(IDENTIFIER)) {
 		return Variable(previous());
+	}
+	if (match(LEFT_PAREN)) {
+		Expr expr(expression());
+		consume(RIGHT_PAREN, "Expect ')' after expression.");
+		return Grouping(make_unique<Expr>(std::move(expr)));
 	}
 	throw error(peek(), "Expect expression.");
 }
@@ -334,11 +335,6 @@ Stmt Parser::for_statement() {
 		for_block.push_back(std::move(initializer));
 		for_block.push_back(While(std::move(condition), make_unique<Stmt>(std::move(loop_body))));
 		return Block(std::move(for_block));
-		/*
-		return Block({initializer, While(std::move(condition), make_unique<Stmt>(
-			Block({statement(), Expression(std::move(increment))}))
-		)});
-		*/
 	}
 	// initializer is empty
 	if (!std::holds_alternative<std::monostate>(increment)) {
@@ -419,10 +415,10 @@ Stmt Parser::declaration() {
 
 Stmt Parser::class_declaration() {
 	Token name = consume(IDENTIFIER, "Expect class name.");
-	optional<Variable> superclass = std::nullopt;
+	unique_ptr<Variable> superclass = nullptr;
 	if (match(LESS)) {
 		consume(IDENTIFIER, "Expect superclass name.");
-		superclass.emplace(previous());
+		superclass = make_unique<Variable>((previous()));
 	}
 	consume(LEFT_BRACE, "Expect '{' before class body.");
 	
@@ -432,7 +428,7 @@ Stmt Parser::class_declaration() {
 	}
 	
 	consume(RIGHT_BRACE, "Expect '}' after class body.");
-	return Class(name, superclass, std::move(methods));
+	return Class(name, std::move(superclass), std::move(methods));
 }
 
 Stmt Parser::var_declaration() {

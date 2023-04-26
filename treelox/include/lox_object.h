@@ -36,13 +36,11 @@ class Interpreter;
 
 struct LoxFunction {
 	const Function *declaration; // non-owning
-	// lifetime of closure needs to at least as long as LoxFunction - I think this works?
-	Environment *closure;
-	// for methods, need to carry environment where 'this' is bound to object
-	std::shared_ptr<Environment> bound_closure;
+	// lifetime of closure needs to at least as long as LoxFunction
+	std::shared_ptr<Environment> closure;
 	size_t arity;
 	bool is_initializer = false;
-	LoxFunction(const Function *declaration, Environment *closure);
+	LoxFunction(const Function *declaration, std::shared_ptr<Environment> closure);
 	LoxFunction bind(LoxInstance *instance);
 
 	LoxObject operator()(Interpreter &it, const std::vector<LoxObject> &args);
@@ -70,12 +68,11 @@ struct NativeFunction {
 struct LoxClass: std::enable_shared_from_this<LoxClass> {
 	std::string name;
 	std::shared_ptr<LoxClass> superclass;
-	std::shared_ptr<Environment> super_closure;
 	std::unordered_map<std::string, LoxFunction> methods;
 	size_t arity;
 
 	LoxClass(std::string_view name, std::shared_ptr<LoxClass> superclass, std::unordered_map<std::string, LoxFunction> methods);
-	LoxInstance operator()(Interpreter &it, const std::vector<LoxObject> &args);
+	std::shared_ptr<LoxInstance> operator()(Interpreter &it, const std::vector<LoxObject> &args);
 	
 	std::optional<LoxFunction> find_method(const std::string &method_name);	
 

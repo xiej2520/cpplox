@@ -24,7 +24,7 @@ struct Interpreter::EvaluateExpr {
 			it.environment->assign_at(it.locals[(Variable *)(&expr)], expr.name, value);
 		}
 		else {
-			it.globals.assign(expr.name, value);
+			it.globals->assign(expr.name, value);
 		}
 		return value;
 	}
@@ -99,9 +99,14 @@ struct Interpreter::EvaluateExpr {
 			return get<NativeFunction>(callee).operator()(it, arguments);
 		}
 		if (holds_alternative<shared_ptr<LoxClass>>(callee)) {
+			if (arguments.size() != get<shared_ptr<LoxClass>>(callee)->arity) {
+				std::string msg = "Expected " + to_string(static_cast<int>(get<shared_ptr<LoxClass>>(callee)->arity))
+				+ " arguments but got " + to_string(static_cast<int>(arguments.size())) + ".";
+				throw RuntimeError(expr.paren, msg);
+			}
 			// No long valid due to using shared_ptr
 			// watch out for callee being deallocated from stack if rewriting!
-			return make_shared<LoxInstance>((*get<shared_ptr<LoxClass>>(callee))(it, arguments));
+			return (*get<shared_ptr<LoxClass>>(callee))(it, arguments);
 		}
 		throw RuntimeError(expr.paren, "Can only call functions and classes.");
 	}
@@ -180,23 +185,20 @@ struct Interpreter::EvaluateStmt {
 
 	void operator()(std::monostate) {}
 	void operator()(const Block &stmt) {
-		it.execute_block(stmt.statements, make_unique<Environment>(it.environment).get());
+		it.execute_block(stmt.statements, make_shared<Environment>(it.environment));
 	}
 	void operator()(const Class &stmt) {
 		LoxObject superclass = shared_ptr<LoxClass>(nullptr);
-		if (stmt.superclass.has_value()) {
-			superclass = it.evaluate(stmt.superclass.value());
+		it.environment->define(stmt.name.lexeme, std::monostate{});
+		if (stmt.superclass != nullptr) {
+			superclass = it.evaluate(*stmt.superclass);
 			if (!holds_alternative<shared_ptr<LoxClass>>(superclass)) {
-				throw RuntimeError(stmt.superclass.value().name, "Superclass must be a class.");
+				throw RuntimeError(stmt.superclass->name, "Superclass must be a class.");
 			}
-		}
-		it.environment->define_uninitialized(stmt.name.lexeme);
-		shared_ptr<Environment> super_closure = nullptr;
-		if (stmt.superclass.has_value()) {
-			super_closure = make_shared<Environment>(it.environment);
-			it.environment = super_closure.get();
+			it.environment = make_shared<Environment>(it.environment);
 			it.environment->define("super", superclass);
 		}
+
 		unordered_map<string, LoxFunction> methods;
 		for (const Function &method : stmt.methods) {
 			LoxFunction method_instance(&method, it.environment);
@@ -204,9 +206,8 @@ struct Interpreter::EvaluateStmt {
 			methods.emplace(method.name.lexeme, method_instance);
 		}
 		auto klass = make_shared<LoxClass>(stmt.name.lexeme, get<shared_ptr<LoxClass>>(superclass), methods);
-		if (get<shared_ptr<LoxClass>>(superclass) != nullptr) {
+		if (stmt.superclass != nullptr) {
 			it.environment = it.environment->enclosing;
-			klass->super_closure = super_closure;
 		}
 		it.environment->assign(stmt.name, klass);
 	}
@@ -242,7 +243,7 @@ struct Interpreter::EvaluateStmt {
 			it.environment->define(stmt.name.lexeme, it.evaluate(stmt.initializer.value()));
 		}
 		else {
-			it.environment->define_uninitialized(stmt.name.lexeme);
+			it.environment->define(stmt.name.lexeme, std::monostate{});
 		}
 	}
 	void operator()(const While &stmt) {
@@ -252,11 +253,11 @@ struct Interpreter::EvaluateStmt {
 	}
 };
 
-Interpreter::Interpreter(): environment(&globals) {
-	globals.define("clock", NativeFunction(0, [](Interpreter &, const std::vector<LoxObject> &) {
+Interpreter::Interpreter(): globals(make_shared<Environment>()), environment(globals) {
+	globals->define("clock", NativeFunction(0, [](Interpreter &, const std::vector<LoxObject> &) {
 		return static_cast<double>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count());
 	}));
-	globals.define("str", NativeFunction(1, [](Interpreter &, const std::vector<LoxObject> args) {
+	globals->define("str", NativeFunction(1, [](Interpreter &, const std::vector<LoxObject> args) {
 		if (args.size() != 1 || (!holds_alternative<double>(args[0]) && !holds_alternative<int>(args[0]))) {
 			throw RuntimeError(Token(NIL, "str", std::monostate{}, 0), "Expected one number as argument.");
 		}
@@ -300,10 +301,10 @@ void Interpreter::execute(const Stmt &stmt) {
 	std::visit(EvaluateStmt(*this), const_cast<Stmt &>(stmt));
 }
 
-void Interpreter::execute_block(const vector<Stmt> &statements, Environment *new_env) {
+void Interpreter::execute_block(const vector<Stmt> &statements, shared_ptr<Environment> new_env) {
 	struct SaveEnvironment {
 		Interpreter &it;
-		Environment *prev_env;
+		shared_ptr<Environment> prev_env;
 		SaveEnvironment(Interpreter &it): it(it), prev_env(it.environment)  { }
 		~SaveEnvironment() { it.environment = prev_env; }
 	};
@@ -374,7 +375,7 @@ LoxObject Interpreter::look_up_variable(Token name, const This &expr) {
 		return environment->get_at(locals[(Variable *)const_cast<This *>(&expr)], name.lexeme);
 	}
 	else {
-		return globals.get(name);
+		return globals->get(name);
 	}
 }
 
@@ -385,7 +386,7 @@ LoxObject Interpreter::look_up_variable(Token name, const Variable &expr) {
 	}
 	else {
 		//std::cout << "local var not found, looking in globals" << std::endl;
-		return globals.get(name);
+		return globals->get(name);
 	}
 }
 

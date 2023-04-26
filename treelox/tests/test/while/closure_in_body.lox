@@ -13,9 +13,6 @@ while (i < 4) {
 
   i = i + 1;
 }
-print f1;
-print f2;
-print f3;
 
 f1(); // expect: 1.0
 f2(); // expect: 2.0

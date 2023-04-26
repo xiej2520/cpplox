@@ -62,7 +62,7 @@ void Scanner::read_number() {
 	add_token(NUMBER, std::stod(std::string(src.substr(start, current - start))));
 }
 void Scanner::read_identifier() {
-	while (std::isalnum(peek())) {
+	while (std::isalnum(peek()) || peek() == '_') {
 		advance();
 	}
 	std::string_view text = src.substr(start, current - start);

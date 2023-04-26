@@ -16,16 +16,14 @@ using std::unordered_map;
 using std::vector;
 
 
-LoxFunction::LoxFunction(const Function *declaration, Environment *closure):
-	declaration(declaration), closure(closure), bound_closure(nullptr), arity(declaration->params.size()) { }
+LoxFunction::LoxFunction(const Function *declaration, shared_ptr<Environment> closure):
+	declaration(declaration), closure(closure), arity(declaration->params.size()) { }
 
 LoxFunction LoxFunction::bind(LoxInstance *instance) {
 	// create new method instance
-	LoxFunction method_instance(declaration, nullptr);
+	LoxFunction method_instance(declaration, make_shared<Environment>(closure));
 	// bind the closure to the method (use shared_ptr to keep it alive)
-	method_instance.bound_closure = make_shared<Environment>(closure);
-	method_instance.closure = method_instance.bound_closure.get();
-	method_instance.bound_closure->define("this", instance->shared_from_this());
+	method_instance.closure->define("this", instance->shared_from_this());
 	// have to keep it consistent
 	method_instance.is_initializer = is_initializer;
 
@@ -33,12 +31,12 @@ LoxFunction LoxFunction::bind(LoxInstance *instance) {
 }
 
 LoxObject LoxFunction::operator()(Interpreter &it, const vector<LoxObject> &args) {
-	auto env = make_unique<Environment>(closure);
+	auto env = make_shared<Environment>(closure);
 	for (size_t i=0; i<declaration->params.size(); i++) {
 		env->define(declaration->params[i].lexeme, args[i]);
 	}
 	try {
-		it.execute_block(declaration->body, env.get());
+		it.execute_block(declaration->body, env);
 	}
 	catch (ReturnUnwind &res) {
 		if (is_initializer) {
@@ -53,11 +51,11 @@ LoxObject LoxFunction::operator()(Interpreter &it, const vector<LoxObject> &args
 }
 
 bool LoxFunction::operator==(const LoxFunction &f) {
-	return declaration == f.declaration && closure == f.closure && bound_closure == f.bound_closure && arity == f.arity && is_initializer == f.is_initializer;
+	return declaration == f.declaration && closure == f.closure && arity == f.arity && is_initializer == f.is_initializer;
 }
 
 bool operator==(const LoxFunction &f1, const LoxFunction &f2) {
-	return f1.declaration == f2.declaration && f1.closure == f2.closure && f1.bound_closure == f2.bound_closure && f1.arity == f2.arity && f1.is_initializer == f2.is_initializer;
+	return f1.declaration == f2.declaration && f1.closure == f2.closure && f1.arity == f2.arity && f1.is_initializer == f2.is_initializer;
 }
 
 NativeFunction::NativeFunction(size_t arity,
@@ -88,13 +86,13 @@ LoxClass::LoxClass(string_view name, shared_ptr<LoxClass> superclass, unordered_
 	}
 }
 
-LoxInstance LoxClass::operator()(Interpreter &it, const std::vector<LoxObject> &args) {
-	LoxInstance instance(shared_from_this());
+shared_ptr<LoxInstance> LoxClass::operator()(Interpreter &it, const std::vector<LoxObject> &args) {
+	auto instance(make_shared<LoxInstance>(shared_from_this()));
 	auto initializer(find_method("init"));
 	if (initializer != std::nullopt) {
-		initializer.value().bind(&instance)(it, args);
+		initializer.value().bind(instance.get())(it, args);
 	}
-	return LoxInstance(shared_from_this());
+	return instance;
 }
 
 std::optional<LoxFunction> LoxClass::find_method(const string &method_name) {

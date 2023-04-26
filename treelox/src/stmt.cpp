@@ -16,7 +16,7 @@ static_assert(std::is_move_constructible_v<While>, "not move constructible");
 
 Block::Block(vector<Stmt> statements): statements(std::move(statements)) {}
 
-Class::Class(Token name, optional<Variable> superclass, vector<Function> methods):
+Class::Class(Token name, unique_ptr<Variable> superclass, vector<Function> methods):
 	name(std::move(name)), superclass(std::move(superclass)), methods(std::move(methods)) {}
 
 Expression::Expression(Expr expression): expression(std::move(expression)) {}

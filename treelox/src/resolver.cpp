@@ -92,11 +92,12 @@ struct ResolverStmtVisitor {
 		rs.current_class = ClassType::CLASS;
 		rs.declare(stmt.name);
 		rs.define(stmt.name);
-		if (stmt.superclass.has_value() && (stmt.name.lexeme == stmt.superclass.value().name.lexeme)) {
-			Lox::error(stmt.superclass.value().name, "A class can't inherit from itself.");
+		if (stmt.superclass != nullptr && (stmt.name.lexeme == stmt.superclass->name.lexeme)) {
+			Lox::error(stmt.superclass->name, "A class can't inherit from itself.");
 		}
-		if (stmt.superclass.has_value()) {
+		if (stmt.superclass != nullptr) {
 			rs.current_class = ClassType::SUBCLASS;
+			rs.resolve_expr(*stmt.superclass); // optional creates a value on the stack - fail
 			rs.begin_scope();
 			rs.scopes.back()["super"] = true;
 		}
@@ -106,7 +107,7 @@ struct ResolverStmtVisitor {
 			rs.resolve_function(method, method.name.lexeme == "init" ? INITIALIZER : METHOD);
 		}
 		rs.end_scope();
-		if (stmt.superclass.has_value()) {
+		if (stmt.superclass != nullptr) {
 			rs.end_scope();
 		}
 		rs.current_class = enclosing_class;

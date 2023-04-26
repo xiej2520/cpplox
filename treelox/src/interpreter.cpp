@@ -255,7 +255,7 @@ struct Interpreter::EvaluateStmt {
 
 Interpreter::Interpreter(): globals(make_shared<Environment>()), environment(globals) {
 	globals->define("clock", NativeFunction(0, [](Interpreter &, const std::vector<LoxObject> &) {
-		return static_cast<double>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count());
+		return static_cast<double>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count()) / 1000.0;
 	}));
 	globals->define("str", NativeFunction(1, [](Interpreter &, const std::vector<LoxObject> args) {
 		if (args.size() != 1 || (!holds_alternative<double>(args[0]) && !holds_alternative<int>(args[0]))) {

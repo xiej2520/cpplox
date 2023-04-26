@@ -146,7 +146,7 @@ struct LoxObjToString {
 	string operator()(std::monostate) const { return "nil"; }
 	string operator()(int i) const { return std::to_string(i); }
 	string operator()(double d) const {
-		if (d == std::trunc(d)) {
+		if (d > INT_MIN && d < INT_MAX && d == std::trunc(d)) {
 			return std::to_string(static_cast<int>(d)) + ".0";
 		}
 		return std::to_string(d);

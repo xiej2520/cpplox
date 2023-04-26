@@ -20,11 +20,11 @@ struct Interpreter::EvaluateExpr {
 	}
 	LoxObject operator()(const Assign &expr) {
 		LoxObject value = it.evaluate(*expr.value);
-		if (it.locals.contains((Variable *)(&expr))) {
-			it.environment->assign_at(it.locals[(Variable *)(&expr)], expr.name, value);
+		if (expr.depth == -1) {
+			it.globals->assign(expr.name, value);
 		}
 		else {
-			it.globals->assign(expr.name, value);
+			it.environment->assign_at(expr.depth, expr.name, value);
 		}
 		return value;
 	}
@@ -145,10 +145,9 @@ struct Interpreter::EvaluateExpr {
 		return value;
 	}
 	LoxObject operator()(const Super &expr) {
-		int distance = it.locals[(Variable *) const_cast<Super *>(&expr)];
 
-		auto superclass = get<shared_ptr<LoxClass>>(it.environment->get_at(distance, "super"));
-		auto obj = get<shared_ptr<LoxInstance>>(it.environment->get_at(distance-1, "this"));
+		auto superclass = get<shared_ptr<LoxClass>>(it.environment->get_at(expr.depth, "super"));
+		auto obj = get<shared_ptr<LoxInstance>>(it.environment->get_at(expr.depth-1, "this"));
 
 		auto opt_method = superclass->find_method(expr.method.lexeme);
 		if (!opt_method.has_value()) {
@@ -348,45 +347,23 @@ void Interpreter::repl_interpret(const std::vector<Stmt> &statements) {
 	}
 }
 
-void Interpreter::resolve(const Assign &expr, int depth) {
-	Variable *key = (Variable *) const_cast<Assign *>(&expr);
-	locals[key] = depth;
-	//std::cout << "binding expr " << to_string(expr.name) << " to " << key << " depth " << depth << " addr" << &expr << std::endl;
+template<class T>
+void Interpreter::resolve(T &expr, int depth) {
+	expr.depth = depth;
 }
 
-void Interpreter::resolve(const Super &expr, int depth) {
-	Variable *key = (Variable *) const_cast<Super *>(&expr);
-	locals[key] = depth;
-}
+template void Interpreter::resolve<Assign>(Assign &, int);
+template void Interpreter::resolve<Super>(Super &, int);
+template void Interpreter::resolve<This>(This &, int);
+template void Interpreter::resolve<Variable>(Variable &, int);
 
-void Interpreter::resolve(const This &expr, int depth) {
-	Variable *key = (Variable *) const_cast<This *>(&expr);
-	locals[key] = depth;
-}
-
-void Interpreter::resolve(const Variable &expr, int depth) {
-	Variable *key = (Variable *) const_cast<Variable *>(&expr);
-	locals[key] = depth;
-	//std::cout << "binding expr " << to_string(expr) << " to " << key << " depth " << depth << " addr " << &expr << std::endl;
-}
-
-LoxObject Interpreter::look_up_variable(Token name, const This &expr) {
-	if (locals.contains((Variable *) const_cast<This *>(&expr))) {
-		return environment->get_at(locals[(Variable *)const_cast<This *>(&expr)], name.lexeme);
-	}
-	else {
+template<class T>
+LoxObject Interpreter::look_up_variable(const Token &name, T &expr) {
+	if (expr.depth == -1) {
 		return globals->get(name);
 	}
-}
-
-LoxObject Interpreter::look_up_variable(Token name, const Variable &expr) {
-	//std::cout << "looking up variable " << to_string(expr) << " |addr| " << &expr << std::endl;
-	if (locals.contains(const_cast<Variable *>(&expr))) {
-		return environment->get_at(locals[const_cast<Variable *>(&expr)], name.lexeme);
-	}
 	else {
-		//std::cout << "local var not found, looking in globals" << std::endl;
-		return globals->get(name);
+		return environment->get_at(expr.depth, name.lexeme);
 	}
 }
 

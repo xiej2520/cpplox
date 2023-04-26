@@ -46,12 +46,9 @@ public:
 	void execute(const Stmt &stmt);
 	void execute_block(const std::vector<Stmt> &statements, std::shared_ptr<Environment> environment);
 	
-	// overloading to const Expr & creates a copy on the stack??? doesn't work
-	void resolve(const Assign &expr, int depth);
-	void resolve(const Super &expr, int depth);
-	void resolve(const This &expr, int depth);
-	void resolve(const Variable &expr, int depth);
+	template<class T>
+	void resolve(T &expr, int depth);
 	// using const Expr &expr instead of const Variable &expr creates a temporary on the stack?
-	LoxObject look_up_variable(Token name, const This &expr);
-	LoxObject look_up_variable(Token name, const Variable &expr);
+	template<class T>
+	LoxObject look_up_variable(const Token &name, T &expr);
 };

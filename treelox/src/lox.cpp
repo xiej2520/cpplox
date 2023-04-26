@@ -57,7 +57,7 @@ namespace Lox {
 		}
 
 		Resolver resolver(interpreter);
-		resolver.resolve_block(statements);
+		resolver.resolve(statements);
 
 		if (had_error) {
 			return;
@@ -75,7 +75,7 @@ namespace Lox {
 			return;
 		}
 
-		resolver.resolve_block(statements);
+		resolver.resolve(statements);
 		if (had_error) {
 			return;
 		}

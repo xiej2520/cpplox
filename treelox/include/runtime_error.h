@@ -16,9 +16,3 @@ public:
 		return msg.c_str();
 	}
 };
-
-class ReturnUnwind : std::exception {
-public:
-	const LoxObject value;
-	explicit ReturnUnwind(LoxObject value): value(value) {}
-};

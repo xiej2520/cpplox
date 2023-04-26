@@ -35,19 +35,12 @@ LoxObject LoxFunction::operator()(Interpreter &it, const vector<LoxObject> &args
 	for (size_t i=0; i<declaration->params.size(); i++) {
 		env->define(declaration->params[i].lexeme, args[i]);
 	}
-	try {
-		it.execute_block(declaration->body, env);
-	}
-	catch (ReturnUnwind &res) {
-		if (is_initializer) {
-			return closure->get_at(0, "this");
-		}
-		return res.value;
-	}
+	it.execute_block(declaration->body, env);
 	if (is_initializer) {
 		return closure->get_at(0, "this");
 	}
-	return std::monostate{};
+	it.has_return = false;
+	return it.return_value;
 }
 
 bool LoxFunction::operator==(const LoxFunction &f) {

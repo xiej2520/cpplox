@@ -45,7 +45,6 @@ using Expr = std::variant
 struct Assign {
 	const Token name;
 	int depth = -1; // globals have depth -1
-	LoxObject *var_ptr = nullptr;
 	std::unique_ptr<Expr> value;
 	Assign(Token name, std::unique_ptr<Expr> value);
 };
@@ -98,14 +97,12 @@ struct Super {
 	const Token keyword;
 	const Token method;
 	int depth = -1;
-	LoxObject *var_ptr = nullptr;
 	Super(Token keyword, Token method);
 };
 
 struct This {
 	const Token keyword;
 	int depth = -1;
-	LoxObject *var_ptr = nullptr;
 	This(Token keyword);
 };
 
@@ -118,6 +115,5 @@ struct Unary {
 struct Variable {
 	const Token name;
 	int depth = -1;
-	LoxObject *var_ptr = nullptr;
 	Variable(Token name);
 };

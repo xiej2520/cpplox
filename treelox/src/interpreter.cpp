@@ -230,12 +230,10 @@ struct Interpreter::EvaluateStmt {
 		std::cout << to_string(value) << "\n";
 	}
 	void operator()(const Return &stmt) {
-		LoxObject value = holds_alternative<std::monostate>(stmt.value) ? std::monostate{} : it.evaluate(stmt.value);
-		// lol
-		// buggy
-		// exceptions bad
-		// this is INSANELY slow, at least for the fibonacci benchmark
-		throw ReturnUnwind(value);
+		/* throwing exceptions for return is insanely slow, at least 10x speedup on
+		   the fib benchmark after replacing it. */
+		it.return_value = holds_alternative<std::monostate>(stmt.value) ? std::monostate{} : it.evaluate(stmt.value);
+		it.has_return = true;
 	}
 	void operator()(Var &stmt) {
 		if (stmt.initializer.has_value()) {
@@ -246,7 +244,8 @@ struct Interpreter::EvaluateStmt {
 		}
 	}
 	void operator()(const While &stmt) {
-		while (it.is_truthy(it.evaluate(stmt.condition))) {
+		// need to check for returns!
+		while (it.is_truthy(it.evaluate(stmt.condition)) && !it.has_return) {
 			it.execute(*stmt.body);
 		}
 	}
@@ -296,7 +295,6 @@ void Interpreter::check_num_operands(Token op, LoxObject left, LoxObject right) 
 }
 
 void Interpreter::execute(const Stmt &stmt) {
-			//std::cout << "execute " << &stmt << std::endl;
 	std::visit(EvaluateStmt(*this), const_cast<Stmt &>(stmt));
 }
 
@@ -310,14 +308,16 @@ void Interpreter::execute_block(const vector<Stmt> &statements, shared_ptr<Envir
 	SaveEnvironment push_env(*this);
 	try {
 		environment = new_env;
-		for (const Stmt &statement : statements) {
-			execute(statement);
+		for (const Stmt &stmt: statements) {
+			execute(stmt);
+			if (has_return) {
+				break;
+			}
 		}
 	}
 	catch (RuntimeError &err) {
 		Lox::runtime_error(err);
 	}
-	// RAII instead of finally block. Otherwise, must catch ReturnUnwind in LoxFunction
 }
 
 void Interpreter::interpret(const std::vector<Stmt> &statements) {
@@ -359,12 +359,10 @@ template void Interpreter::resolve<Variable>(Variable &, int);
 
 template<class T>
 LoxObject Interpreter::look_up_variable(const Token &name, T &expr) {
-	if (expr.depth == -1) {
-		return globals->get(name);
-	}
-	else {
+		if (expr.depth == -1) {
+			return globals->get(name);
+		}	
 		return environment->get_at(expr.depth, name.lexeme);
-	}
 }
 
 RuntimeError::RuntimeError(Token token, const char *msg): token(token), msg(msg) { }

@@ -38,7 +38,11 @@ class Interpreter {
 public:
 	std::shared_ptr<Environment> globals;
 	std::shared_ptr<Environment> environment;
+	LoxObject return_value = std::monostate{};
+	bool has_return = false;
+
 	Interpreter();
+
 	void interpret(const std::vector<Stmt> &expression);
 	void repl_interpret(const std::vector<Stmt> &expression);
 	

@@ -223,15 +223,6 @@ Expr Parser::finish_call(std::unique_ptr<Expr> callee) {
 	return Call(std::move(callee), paren, std::move(arguments));
 }
 
-struct TokenLiteralConversion {
-	Token &t;
-	TokenLiteralConversion(Token &t): t(t) {}
-	Literal operator()(std::monostate){ return {t.lexeme.substr(1, t.lexeme.size() - 2)}; } // get rid of quotes
-	Literal operator()(bool b) { return {b}; }
-	Literal operator()(int i) { return {i}; }
-	Literal operator()(double d) { return {d}; }
-};
-
 Expr Parser::primary() {
 	if (match(FALSE)) {
 		return Literal(false);
@@ -244,7 +235,17 @@ Expr Parser::primary() {
 	}
 	if (match({NUMBER, STRING})) {
 		Token t = previous();
-		return std::visit(TokenLiteralConversion(t), t.literal);
+		switch (t.type) {
+			case NUMBER:
+				return Literal(t.literal.d);
+			case TRUE:
+				return Literal(true);
+			case FALSE:
+				return Literal(false);
+			case STRING:
+			default:
+				return Literal(t.lexeme.substr(1, t.lexeme.size() - 2));
+		}
 	}
 	if (match(SUPER)) {
 		Token keyword = previous();
@@ -274,11 +275,17 @@ vector<Stmt> Parser::parse() {
 }
 
 Stmt Parser::statement() {
-	if (match(FOR)) return for_statement();
 	if (match(IF)) return if_statement();
 	if (match(PRINT)) return print_statement();
-	if (match(RETURN)) return return_statement();
+	if (match(FOR)) return for_statement();
 	if (match(WHILE)) return while_statement();
+	if (match(BREAK)) {
+		if (loop_depth < 1) {
+			error(peek(), "Break statement outside loop.");
+		}
+		return Break{};
+	}
+	if (match(RETURN)) return return_statement();
 	if (match(LEFT_BRACE)) return Block(block());
 	return expression_statement();
 }
@@ -309,7 +316,9 @@ Stmt Parser::while_statement() {
 	consume(LEFT_PAREN, "Expect '(' after 'while'.");
 	Expr condition = expression();
 	consume(RIGHT_PAREN, "Expect ')' after condition.");
+	loop_depth++;
 	auto body = make_unique<Stmt>(statement());
+	loop_depth--;
 	return While(std::move(condition), std::move(body));
 }
 
@@ -324,6 +333,7 @@ Stmt Parser::for_statement() {
 	Expr increment = check(RIGHT_PAREN) ? std::monostate{} : expression();
 	consume(RIGHT_PAREN, "Expect ')' after for clauses.");
 	
+	loop_depth++;
 	// has both initializer and increment
 	if (!std::holds_alternative<std::monostate>(initializer) &&
 		!std::holds_alternative<std::monostate>(increment)) {
@@ -334,6 +344,7 @@ Stmt Parser::for_statement() {
 		vector<Stmt> for_block;
 		for_block.push_back(std::move(initializer));
 		for_block.push_back(While(std::move(condition), make_unique<Stmt>(std::move(loop_body))));
+		loop_depth--;
 		return Block(std::move(for_block));
 	}
 	// initializer is empty
@@ -342,6 +353,7 @@ Stmt Parser::for_statement() {
 		loop_body.push_back(statement());
 		loop_body.push_back(Expression(std::move(increment)));
 		
+		loop_depth--;
 		return While(std::move(condition), make_unique<Stmt>(std::move(loop_body)));
 	}
 	// increment is empty
@@ -349,10 +361,12 @@ Stmt Parser::for_statement() {
 		vector<Stmt> for_block;
 		for_block.push_back(std::move(initializer));
 		for_block.push_back(While(std::move(condition), make_unique<Stmt>(statement())));
+		loop_depth--;
 		return Block(std::move(for_block));
 	}
 	// infinite loop
 	vector<Stmt> loop_body;
+	loop_depth--;
 	return While(std::move(condition), make_unique<Stmt>(statement()));
 }
 

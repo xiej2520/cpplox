@@ -4,20 +4,21 @@
 
 using enum TokenType;
 
-bool Scanner::is_at_end() {
-	return static_cast<size_t>(current) >= src.size();
-}
-
-char Scanner::advance() {
-	return src[current++];
-}
 void Scanner::add_token(TokenType type, TokenLiteral literal) {
 	std::string_view text = src.substr(start, current - start);
 	tokens.emplace_back(type, text, literal, line);
 }
 
 void Scanner::add_token(TokenType type) {
-	add_token(type, std::monostate{});
+	add_token(type, {.b=false});
+}
+
+bool Scanner::is_at_end() {
+	return static_cast<size_t>(current) >= src.size();
+}
+
+char Scanner::advance() {
+	return src[current++];
 }
 
 bool Scanner::match(char expected) {
@@ -46,7 +47,7 @@ void Scanner::read_string() {
 		return;
 	}
 	advance(); // closing ""
-	add_token(STRING, std::monostate{});
+	add_token(STRING, {.b=false});
 }
 
 void Scanner::read_number() {
@@ -59,7 +60,7 @@ void Scanner::read_number() {
 			advance();
 		}
 	}
-	add_token(NUMBER, std::stod(std::string(src.substr(start, current - start))));
+	add_token(NUMBER, { .d=std::stod(std::string(src.substr(start, current - start))) });
 }
 void Scanner::read_identifier() {
 	while (std::isalnum(peek()) || peek() == '_') {
@@ -67,6 +68,14 @@ void Scanner::read_identifier() {
 	}
 	std::string_view text = src.substr(start, current - start);
 	TokenType type = keywords.contains(text) ? keywords[text] : IDENTIFIER;
+	if (type == BREAK) {
+		if (peek() != ';') {
+			Lox::error(Token{BREAK, text, {.b=0},  line}, "Expect ';' after break.");
+		}
+		add_token(type); // avoid lexeme being 'break '
+		advance();
+		return;
+	}
 	add_token(type);
 }
 
@@ -91,6 +100,24 @@ void Scanner::scan_token() {
 			if (match('/')) {
 				while (peek() != '\n' && !is_at_end())  {
 					advance();
+				}
+			}
+			else if (match('*')) {
+				int stack = 1;
+				while (!is_at_end() && stack > 0) {
+					if (match('/')) {
+						if (match('*')) {
+							stack++;
+						}
+					}
+					else if (match('*')) {
+						if (match('/')) {
+							stack--;
+						}
+					}
+					else {
+						advance();
+					}
 				}
 			}
 			else {
@@ -118,6 +145,7 @@ void Scanner::scan_token() {
 
 Scanner::Scanner(std::string_view src): src(src) {
 	keywords["and"]    = AND;
+	keywords["break"]  = BREAK;
 	keywords["class"]  = CLASS;
 	keywords["else"]   = ELSE;
 	keywords["false"]  = FALSE;
@@ -140,6 +168,6 @@ std::vector<Token> Scanner::scan_tokens() {
 		start = current;
 		scan_token();
 	}
-	tokens.emplace_back(END_OF_FILE, "", std::monostate{}, line);
+	tokens.emplace_back(END_OF_FILE, "", TokenLiteral{ .b=false }, line);
 	return tokens;
 }

@@ -7,6 +7,7 @@
 #include <vector>
 
 struct Block;
+struct Break;
 struct Class;
 struct Expression;
 struct Function;
@@ -20,6 +21,7 @@ using Stmt = std::variant
 <
 	std::monostate,
 	Block,
+	Break,
 	Class,
 	Expression,
 	Function,
@@ -34,6 +36,8 @@ struct Block {
 	std::vector<Stmt> statements;
 	Block(std::vector<Stmt> statements);
 };
+
+struct Break { };
 
 struct Class {
 	const Token name;

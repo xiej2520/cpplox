@@ -186,6 +186,9 @@ struct Interpreter::EvaluateStmt {
 	void operator()(const Block &stmt) {
 		it.execute_block(stmt.statements, make_shared<Environment>(it.environment));
 	}
+	void operator()(const Break &) {
+		it.has_break = true;
+	}
 	void operator()(const Class &stmt) {
 		LoxObject superclass = shared_ptr<LoxClass>(nullptr);
 		it.environment->define(stmt.name.lexeme, std::monostate{});
@@ -245,9 +248,10 @@ struct Interpreter::EvaluateStmt {
 	}
 	void operator()(const While &stmt) {
 		// need to check for returns!
-		while (it.is_truthy(it.evaluate(stmt.condition)) && !it.has_return) {
+		while (it.is_truthy(it.evaluate(stmt.condition)) && !it.has_return && !it.has_break) {
 			it.execute(*stmt.body);
 		}
+		it.has_break = false;
 	}
 };
 
@@ -257,7 +261,7 @@ Interpreter::Interpreter(): globals(make_shared<Environment>()), environment(glo
 	}));
 	globals->define("str", NativeFunction(1, [](Interpreter &, const std::vector<LoxObject> args) {
 		if (args.size() != 1 || (!holds_alternative<double>(args[0]) && !holds_alternative<int>(args[0]))) {
-			throw RuntimeError(Token(NIL, "str", std::monostate{}, 0), "Expected one number as argument.");
+			throw RuntimeError(Token(NIL, "str", {.b=false}, 0), "Expected one number as argument.");
 		}
 		if (holds_alternative<double>(args[0])) {
 			return to_string(get<double>(args[0]));
@@ -310,7 +314,7 @@ void Interpreter::execute_block(const vector<Stmt> &statements, shared_ptr<Envir
 		environment = new_env;
 		for (const Stmt &stmt: statements) {
 			execute(stmt);
-			if (has_return) {
+			if (has_return || has_break) {
 				break;
 			}
 		}

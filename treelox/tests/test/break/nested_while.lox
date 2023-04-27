@@ -1,0 +1,22 @@
+var i = 10;
+while (i > 0) {
+	while (i > 6) {
+		print i;
+		if (i == 8) {
+			i = 7;
+			break;
+		}
+		i = i - 1;
+	}
+	print i;
+	if (i == 3) {
+		break;
+	}
+	i = i - 2;
+}
+// expect: 10.0
+// expect: 9.0
+// expect: 8.0
+// expect: 7.0
+// expect: 5.0
+// expect: 3.0

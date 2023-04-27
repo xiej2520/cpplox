@@ -74,6 +74,7 @@ void Resolver::operator()(Block &stmt) {
 	resolve(stmt.statements);
 	end_scope();
 }
+void Resolver::operator()(Break &) { }
 void Resolver::operator()(Class &stmt) {
 	ClassType enclosing_class(current_class);
 	current_class = ClassType::CLASS;

@@ -34,6 +34,7 @@ enum class TokenType {
 
 	// Keywords
 	AND,
+	BREAK,
 	CLASS,
 	ELSE,
 	FALSE,
@@ -78,6 +79,7 @@ constexpr std::string to_string(TokenType t) {
 	case TokenType::STRING: return "STRING";
 	case TokenType::NUMBER: return "NUMBER";
 	case TokenType::AND: return "AND";
+	case TokenType::BREAK: return "BREAK";
 	case TokenType::CLASS: return "CLASS";
 	case TokenType::ELSE: return "ELSE";
 	case TokenType::FALSE: return "FALSE";
@@ -98,7 +100,11 @@ constexpr std::string to_string(TokenType t) {
 	}
 }
 
-using TokenLiteral = std::variant<std::monostate, bool, int, double>;
+union TokenLiteral {
+	bool b;
+	int i;
+	double d;
+};
 
 struct Token {
 	const TokenType type;

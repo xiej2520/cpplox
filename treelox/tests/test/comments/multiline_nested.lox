@@ -1,0 +1,7 @@
+/*
+/*// print "happy"; */ print "sad"; /*
+print "neutral"; */// print "okay"
+*/
+print "ok"; // expect: ok
+/* print "never";
+abcdefg*/

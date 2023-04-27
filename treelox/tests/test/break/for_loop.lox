@@ -1,0 +1,8 @@
+for (var i = 5; i > 0; i = i - 1) {
+	if (i == 3) {
+		break;print i;
+	}
+	print i;
+}
+// expect: 5.0
+// expect: 4.0

@@ -29,6 +29,8 @@ class Interpreter {
 	// takes in an Expr, evaluates it down to LoxObject
 	LoxObject evaluate(const Expr &expr);
 	
+	bool has_break = false; // break statement reached
+	
 	// only true value is bool true, everything else is false
 	bool is_truthy(const LoxObject &obj);
 

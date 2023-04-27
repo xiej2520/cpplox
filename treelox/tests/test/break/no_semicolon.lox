@@ -1,0 +1,4 @@
+var i = 1;
+while (i > 0) {
+	break ;// [line 3] Error at 'break': Expect ';' after break.
+} // [line 3] Error at ';': Expect expression.

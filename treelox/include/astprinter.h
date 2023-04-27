@@ -77,6 +77,9 @@ struct StmtToString {
 		}
 		return res + "}";
 	}
+	std::string operator()(const Break &) {
+		return "Break";
+	}
 	std::string operator()(const Class &stmt) {
 		return "Class: " + to_string(stmt.name);
 	}

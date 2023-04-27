@@ -12,6 +12,7 @@ class Parser {
 
 	std::vector<Token> tokens;
 	int current = 0;
+	int loop_depth = 0;
 
 	// matches the current token against a list of tokens, advances if it is
 	bool match(const std::vector<TokenType> &types);

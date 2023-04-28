@@ -1,6 +1,7 @@
 #include "common.hpp"
 #include "vm.hpp"
 #include "debug.hpp"
+#include "compiler.hpp"
 
 #include "fmt/core.h"
 
@@ -10,10 +11,9 @@ using enum InterpretResult;
 
 VM::VM() {}
 
-InterpretResult VM::interpret(Chunk *chunk) {
-	this->chunk = chunk;
-	ip = chunk->code.data();
-	return run();
+InterpretResult VM::interpret(std::string_view src) {
+	compile(src);
+	return InterpretResult::INTERPRET_OK;
 }
 
 InterpretResult VM::run() {

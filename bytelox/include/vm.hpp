@@ -2,6 +2,7 @@
 
 #include "chunk.hpp"
 
+#include <string>
 #include <vector>
 
 namespace bytelox {
@@ -19,7 +20,7 @@ struct VM {
 
 	VM();
 	
-	InterpretResult interpret(Chunk *chunk);
+	InterpretResult interpret(std::string_view src);
 	
 	InterpretResult run();
 	

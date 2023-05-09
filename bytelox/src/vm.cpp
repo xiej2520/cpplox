@@ -9,11 +9,21 @@ namespace bytelox {
 
 using enum InterpretResult;
 
-VM::VM() {}
+VM::VM() { }
 
 InterpretResult VM::interpret(std::string_view src) {
-	compile(src);
-	return InterpretResult::INTERPRET_OK;
+	chunk = new Chunk;
+	Scanner scanner(src);
+	Compiler compiler(scanner);
+	if (!compiler.compile(src, *chunk)) {
+		delete chunk;
+		return INTERPRET_COMPILE_ERROR;
+	}
+	compiler.end_compiler();
+	ip = chunk->code.data(); // instruction pointer
+	InterpretResult res = run();
+	delete chunk;
+	return res;
 }
 
 InterpretResult VM::run() {

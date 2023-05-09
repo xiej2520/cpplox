@@ -14,7 +14,7 @@ enum class InterpretResult {
 };
 
 struct VM {
-	Chunk *chunk = nullptr;
+	Chunk *chunk;
 	u8 *ip = nullptr; // next instruction to be executed
 	std::vector<LoxValue> stack;
 

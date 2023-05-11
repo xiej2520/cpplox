@@ -17,10 +17,20 @@ constexpr auto operator+(T e) noexcept
 enum class OP {
 	CONSTANT,      // 2 bytes
 	CONSTANT_LONG, // 4 bytes, 3 byte little-endian constant index
+	NIL,           // 1 byte
+	TRUE,          // 1 byte
+	FALSE,         // 1 byte
+	EQUAL,         // 1 byte
+	NOT_EQUAL,     // 1 byte
+	GREATER,       // 1 byte
+	GREATER_EQUAL, // 1 byte
+	LESS,          // 1 byte
+	LESS_EQUAL,    // 1 byte
 	ADD,           // 1 byte
 	SUB,           // 1 byte
 	MUL,           // 1 byte
 	DIV,           // 1 byte
+	NOT,           // 1 byte
 	NEGATE,        // 1 byte
 	RETURN         // 1 byte
 };

@@ -16,14 +16,14 @@ int simple_instruction(std::string_view name, int offset) {
 int constant_instruction(std::string_view name, Chunk &chunk, int offset) {
 	u8 index = chunk.code[offset + 1];
 	fmt::print("{:<16} {} '", name, index);
-	print_value(chunk.constants[index]);
+	chunk.constants[index].print_value();
 	fmt::print("'\n");
 	return offset + 2;
 }
 int constant_long_instruction(std::string_view name, Chunk &chunk, int offset) {
 	size_t index = chunk.code[offset+1] | (chunk.code[offset+2] << 8) | (chunk.code[offset+3] << 16);
 	fmt::print("{:<16} {} '", name, index);
-	print_value(chunk.constants[index]);
+	chunk.constants[index].print_value();
 	fmt::print("'\n");
 	return offset + 4;
 }
@@ -48,6 +48,24 @@ int disassemble_instruction(Chunk &chunk, size_t offset) {
 			return constant_instruction("OP_CONSTANT", chunk, offset);
 		case +OP::CONSTANT_LONG:
 			return constant_long_instruction("OP_CONSTANT_LONG", chunk, offset);
+		case +OP::NIL:
+			return simple_instruction("OP_NIL", offset);
+		case +OP::TRUE:
+			return simple_instruction("OP_TRUE", offset);
+		case +OP::FALSE:
+			return simple_instruction("OP_FALSE", offset);
+		case +OP::EQUAL:
+			return simple_instruction("OP_EQUAL", offset);
+		case +OP::NOT_EQUAL:
+			return simple_instruction("OP_NOT_EQUAL", offset);
+		case +OP::GREATER:
+			return simple_instruction("OP_GREATER", offset);
+		case +OP::GREATER_EQUAL:
+			return simple_instruction("OP_GREATER_EQUAL", offset);
+		case +OP::LESS:
+			return simple_instruction("OP_LESS", offset);
+		case +OP::LESS_EQUAL:
+			return simple_instruction("OP_LESS_EQUAL", offset);
 		case +OP::ADD:
 			return simple_instruction("OP_ADD", offset);
 		case +OP::SUB:
@@ -56,6 +74,8 @@ int disassemble_instruction(Chunk &chunk, size_t offset) {
 			return simple_instruction("OP_MUL", offset);
 		case +OP::DIV:
 			return simple_instruction("OP_DIV", offset);
+		case +OP::NOT:
+			return simple_instruction("OP_NOT", offset);
 		case +OP::NEGATE:
 			return simple_instruction("OP_NEGATE", offset);
 		case +OP::RETURN:

@@ -35,8 +35,8 @@ struct Compiler {
 	std::array<ParseRule, num_parse> rules;
 	
 	struct {
-		Token current;
 		Token previous;
+		Token current;
 		bool had_error = false;
 		bool panic_mode = false;
 	} parser;
@@ -65,6 +65,7 @@ struct Compiler {
 	void grouping();
 	void unary();
 	void binary();
+	void literal();
 	
 	void parse_precedence(Precedence precedence);
 	ParseRule *get_rule(TokenType type);

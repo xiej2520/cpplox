@@ -8,8 +8,6 @@ using enum TokenType;
 
 Scanner::Scanner(std::string_view src): src(src) { }
 
-
-
 Token Scanner::scan_token() {
 	skip_whitespace();
 	start = current;

@@ -1,5 +1,6 @@
 #include "compiler.hpp"
 #include "scanner.hpp"
+#include "vm.hpp"
 
 #ifdef DEBUG_PRINT_CODE
 #include "debug.hpp"
@@ -11,7 +12,7 @@ namespace bytelox {
 
 using ParseFn = void (*)();
 
-Compiler::Compiler(Scanner &scanner): scanner(scanner) {
+Compiler::Compiler(Scanner &scanner, VM &vm): scanner(scanner), vm(vm) {
 	rules[+TokenType::LEFT_PAREN]    = {[&]() { grouping(); }, nullptr, Precedence::NONE};
 	rules[+TokenType::RIGHT_PAREN]   = {nullptr, nullptr, Precedence::NONE};
 	rules[+TokenType::LEFT_BRACE]    = {nullptr, nullptr, Precedence::NONE};
@@ -32,7 +33,7 @@ Compiler::Compiler(Scanner &scanner): scanner(scanner) {
 	rules[+TokenType::LESS]          = {nullptr, [&]() { binary(); }, Precedence::COMPARISON};
 	rules[+TokenType::LESS_EQUAL]    = {nullptr, [&]() { binary(); }, Precedence::COMPARISON};
 	rules[+TokenType::IDENTIFIER]    = {nullptr, nullptr, Precedence::NONE};
-	rules[+TokenType::STRING]        = {nullptr, nullptr, Precedence::NONE};
+	rules[+TokenType::STRING]        = {[&]() { string(); }, nullptr, Precedence::NONE};
 	rules[+TokenType::NUMBER]        = {[&]() { number(); }, nullptr, Precedence::NONE};
 	rules[+TokenType::AND]           = {nullptr, nullptr, Precedence::NONE};
 	rules[+TokenType::CLASS]         = {nullptr, nullptr, Precedence::NONE};
@@ -167,6 +168,10 @@ void Compiler::literal() {
 		case TokenType::TRUE: emit_byte(+OP::TRUE); break;
 		default: return; // unreachable
 	}
+}
+
+void Compiler::string() {
+	emit_constant(vm.make_ObjectString(parser.previous.lexeme.substr(1, parser.previous.lexeme.size() - 2)));
 }
 
 void Compiler::parse_precedence(Precedence precedence) {

@@ -111,7 +111,7 @@ Token Scanner::string() {
 		}
 		advance();
 	}
-	if (!is_at_end()) {
+	if (is_at_end()) {
 		return error_token("Unterminated string.");
 	}
 	advance(); // closing quote

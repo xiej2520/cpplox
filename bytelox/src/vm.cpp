@@ -1,4 +1,5 @@
 #include "common.hpp"
+#include "lox_value.hpp"
 #include "vm.hpp"
 #include "debug.hpp"
 #include "compiler.hpp"
@@ -9,12 +10,20 @@ namespace bytelox {
 
 using enum InterpretResult;
 
-VM::VM() { }
+VM::VM(): objects(nullptr) { }
+
+VM::~VM() {
+	while (objects != nullptr) {
+		LoxObject *next = objects->next;
+		free_LoxObject(objects);
+		objects = next;
+	}
+}
 
 InterpretResult VM::interpret(std::string_view src) {
 	chunk = new Chunk;
 	Scanner scanner(src);
-	Compiler compiler(scanner);
+	Compiler compiler(scanner, *this);
 	if (!compiler.compile(src, *chunk)) {
 		delete chunk;
 		return INTERPRET_COMPILE_ERROR;
@@ -26,8 +35,49 @@ InterpretResult VM::interpret(std::string_view src) {
 	return res;
 }
 
+LoxValue VM::make_LoxObject(LoxObject *obj) {
+	LoxValue res;
+	res.type = ValueType::OBJECT;
+	if (obj == nullptr) {
+		res.as.obj = new LoxObject;
+	}
+	else {
+		res.as = { .obj=obj };
+	}
+	res.as.obj->next = objects;
+	objects = res.as.obj;
+	return res;	
+}
+
+LoxValue VM::make_ObjectString(std::string_view str) {
+	LoxValue res = make_LoxObject(nullptr);
+	res.as.obj = (LoxObject *) new ObjectString(str);
+	return res;	
+}
+
+void VM::free_LoxObject(LoxObject *object) {
+	switch (object->type) {
+		case ObjectType::STRING: {
+			delete object; // unique_ptr frees chars
+		}
+	}
+}
+
 bool is_falsey(LoxValue value) {
 	return value.is_nil() || (value.is_bool() && !value.as.boolean);
+}
+
+void VM::concatenate() {
+	ObjectString &b = peek().as_string();
+	ObjectString &a = peek(1).as_string();
+	int length = a.length + b.length;
+	std::unique_ptr<char[]> chars = std::make_unique_for_overwrite<char[]>(length + 1);
+	std::memcpy(chars.get(), a.chars.get(), a.length);
+	std::memcpy(chars.get() + a.length, b.chars.get(), b.length);
+	chars[length] = '\0';
+	peek(1).as_string().length = length;
+	peek(1).as_string().chars = std::move(chars);
+	stack.pop_back();
 }
 
 // inline?
@@ -113,12 +163,17 @@ InterpretResult VM::run() {
 			break;
 		}
 		case +OP::ADD: {
-			if (!peek().is_number() || !peek(1).is_number()) {
+			if (peek().is_string() && peek(1).is_string()) {
+				concatenate();
+			}
+			else if (peek().is_number() && peek(1).is_number()) {
+				peek(1).as.number += peek().as.number;
+				stack.pop_back();
+			}
+			else {
 				runtime_error("Operands must be numbers.");
 				return INTERPRET_RUNTIME_ERROR;
 			}
-			peek(1).as.number += peek().as.number;
-			stack.pop_back();
 			break;
 		}
 		case +OP::SUB: {

@@ -5,6 +5,13 @@
 
 namespace bytelox {
 
+void LoxObject::print_object() {
+	switch (type) {
+		case ObjectType::STRING: fmt::print("{}", as_string()->chars.get()); break;
+	}
+
+}
+
 void LoxValue::print_value() {
 	switch (type) {
 		case ValueType::BOOL:
@@ -12,6 +19,7 @@ void LoxValue::print_value() {
 			break;
 		case ValueType::NIL: fmt::print("nil"); break;
 		case ValueType::NUMBER: fmt::print("{:g}", as.number); break;
+		case ValueType::OBJECT: as.obj->print_object(); break;
 	}
 }
 

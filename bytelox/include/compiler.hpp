@@ -30,6 +30,8 @@ struct ParseRule {
 
 constexpr int num_parse = 40;
 
+struct VM;
+
 struct Compiler {
 	
 	std::array<ParseRule, num_parse> rules;
@@ -42,11 +44,12 @@ struct Compiler {
 	} parser;
 	
 	Scanner &scanner;
+	VM &vm; // for adding LoxObject constants that need to have references for GC
 	
 	Chunk *compiling_chunk = nullptr;
 	Chunk *current_chunk();
 	
-	Compiler(Scanner &scanner);
+	Compiler(Scanner &scanner, VM &vm);
 
 	bool compile(std::string_view src, Chunk &chunk);
 	void end_compiler();
@@ -66,6 +69,7 @@ struct Compiler {
 	void unary();
 	void binary();
 	void literal();
+	void string();
 	
 	void parse_precedence(Precedence precedence);
 	ParseRule *get_rule(TokenType type);

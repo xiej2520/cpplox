@@ -23,8 +23,8 @@ enum class Precedence {
 };
 
 struct ParseRule {
-	std::function<void(void)> prefix;
-	std::function<void(void)> infix;
+	std::function<void(bool)> prefix;
+	std::function<void(bool)> infix;
 	Precedence precedence;
 };
 
@@ -56,6 +56,8 @@ struct Compiler {
 
 	void advance();
 	void consume(TokenType type, std::string_view msg);
+	bool match(TokenType type);
+	bool check(TokenType type);
 	void emit_byte(u8 byte);
 	void emit_bytes(u8 byte1, u8 byte2);
 	void emit_constant(LoxValue value);
@@ -64,19 +66,33 @@ struct Compiler {
 	u8 make_constant(LoxValue value);
 	
 	void expression();
-	void number();
-	void grouping();
-	void unary();
-	void binary();
-	void literal();
-	void string();
+	void declaration();
+	void statement();
+	void var_declaration();
+	
+	void print_statement();
+	void expression_statement();
+	
+	void number(bool);
+	void grouping(bool);
+	void unary(bool);
+	void binary(bool);
+	void literal(bool);
+	void string(bool);
+	void variable(bool can_assign);
+	void named_variable(Token name, bool can_assign);
 	
 	void parse_precedence(Precedence precedence);
+	u8 identifier_constant(const Token &name);
+	u8 parse_variable(std::string_view msg);
+	void define_variable(u8 global);
 	ParseRule *get_rule(TokenType type);
 	
 	void error_at_current(std::string_view msg);
 	void error(std::string_view msg);
 	void error_at(Token &token, std::string_view msg);
+	
+	void synchronize();
 
 };
 

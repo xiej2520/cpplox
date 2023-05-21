@@ -13,46 +13,49 @@ namespace bytelox {
 using ParseFn = void (*)();
 
 Compiler::Compiler(Scanner &scanner, VM &vm): scanner(scanner), vm(vm) {
-	rules[+TokenType::LEFT_PAREN]    = {[&]() { grouping(); }, nullptr, Precedence::NONE};
+// everything needs to match signature with can_assign
+#define RULE(method) [&](bool can_assign) { method(can_assign); }
+	rules[+TokenType::LEFT_PAREN]    = {RULE(grouping), nullptr, Precedence::NONE};
 	rules[+TokenType::RIGHT_PAREN]   = {nullptr, nullptr, Precedence::NONE};
 	rules[+TokenType::LEFT_BRACE]    = {nullptr, nullptr, Precedence::NONE};
 	rules[+TokenType::RIGHT_BRACE]   = {nullptr, nullptr, Precedence::NONE};
 	rules[+TokenType::COMMA]         = {nullptr, nullptr, Precedence::NONE};
 	rules[+TokenType::DOT]           = {nullptr, nullptr, Precedence::NONE};
-	rules[+TokenType::MINUS]         = {[&]() { unary(); }, [&]() { binary(); }, Precedence::TERM};
-	rules[+TokenType::PLUS]          = {nullptr, [&]() { binary(); }, Precedence::TERM};
+	rules[+TokenType::MINUS]         = {RULE(unary), RULE(binary), Precedence::TERM};
+	rules[+TokenType::PLUS]          = {nullptr, RULE(binary), Precedence::TERM};
 	rules[+TokenType::SEMICOLON]     = {nullptr, nullptr, Precedence::NONE};
-	rules[+TokenType::SLASH]         = {nullptr, [&]() { binary(); }, Precedence::FACTOR};
-	rules[+TokenType::STAR]          = {nullptr, [&]() { binary(); }, Precedence::FACTOR};
-	rules[+TokenType::BANG]          = {[&]() { unary(); }, nullptr, Precedence::NONE};
-	rules[+TokenType::BANG_EQUAL]    = {nullptr, [&]() { binary(); }, Precedence::EQUALITY};
+	rules[+TokenType::SLASH]         = {nullptr, RULE(binary), Precedence::FACTOR};
+	rules[+TokenType::STAR]          = {nullptr, RULE(binary), Precedence::FACTOR};
+	rules[+TokenType::BANG]          = {RULE(unary), nullptr, Precedence::NONE};
+	rules[+TokenType::BANG_EQUAL]    = {nullptr, RULE(binary), Precedence::EQUALITY};
 	rules[+TokenType::EQUAL]         = {nullptr, nullptr, Precedence::NONE};
-	rules[+TokenType::EQUAL_EQUAL]   = {nullptr, [&]() { binary(); }, Precedence::EQUALITY};
-	rules[+TokenType::GREATER]       = {nullptr, [&]() { binary(); }, Precedence::COMPARISON};
-	rules[+TokenType::GREATER_EQUAL] = {nullptr, [&]() { binary(); }, Precedence::COMPARISON};
-	rules[+TokenType::LESS]          = {nullptr, [&]() { binary(); }, Precedence::COMPARISON};
-	rules[+TokenType::LESS_EQUAL]    = {nullptr, [&]() { binary(); }, Precedence::COMPARISON};
-	rules[+TokenType::IDENTIFIER]    = {nullptr, nullptr, Precedence::NONE};
-	rules[+TokenType::STRING]        = {[&]() { string(); }, nullptr, Precedence::NONE};
-	rules[+TokenType::NUMBER]        = {[&]() { number(); }, nullptr, Precedence::NONE};
+	rules[+TokenType::EQUAL_EQUAL]   = {nullptr, RULE(binary), Precedence::EQUALITY};
+	rules[+TokenType::GREATER]       = {nullptr, RULE(binary), Precedence::COMPARISON};
+	rules[+TokenType::GREATER_EQUAL] = {nullptr, RULE(binary), Precedence::COMPARISON};
+	rules[+TokenType::LESS]          = {nullptr, RULE(binary), Precedence::COMPARISON};
+	rules[+TokenType::LESS_EQUAL]    = {nullptr, RULE(binary), Precedence::COMPARISON};
+	rules[+TokenType::IDENTIFIER]    = {RULE(variable), nullptr, Precedence::NONE};
+	rules[+TokenType::STRING]        = {RULE(string), nullptr, Precedence::NONE};
+	rules[+TokenType::NUMBER]        = {RULE(number), nullptr, Precedence::NONE};
 	rules[+TokenType::AND]           = {nullptr, nullptr, Precedence::NONE};
 	rules[+TokenType::CLASS]         = {nullptr, nullptr, Precedence::NONE};
 	rules[+TokenType::ELSE]          = {nullptr, nullptr, Precedence::NONE};
-	rules[+TokenType::FALSE]         = {[&]() { literal(); }, nullptr, Precedence::NONE};
+	rules[+TokenType::FALSE]         = {RULE(literal), nullptr, Precedence::NONE};
 	rules[+TokenType::FOR]           = {nullptr, nullptr, Precedence::NONE};
 	rules[+TokenType::FUN]           = {nullptr, nullptr, Precedence::NONE};
 	rules[+TokenType::IF]            = {nullptr, nullptr, Precedence::NONE};
-	rules[+TokenType::NIL]           = {[&]() { literal(); }, nullptr, Precedence::NONE};
+	rules[+TokenType::NIL]           = {RULE(literal), nullptr, Precedence::NONE};
 	rules[+TokenType::OR]            = {nullptr, nullptr, Precedence::NONE};
 	rules[+TokenType::PRINT]         = {nullptr, nullptr, Precedence::NONE};
 	rules[+TokenType::RETURN]        = {nullptr, nullptr, Precedence::NONE};
 	rules[+TokenType::SUPER]         = {nullptr, nullptr, Precedence::NONE};
 	rules[+TokenType::THIS]          = {nullptr, nullptr, Precedence::NONE};
-	rules[+TokenType::TRUE]          = {[&]() { literal(); }, nullptr, Precedence::NONE};
+	rules[+TokenType::TRUE]          = {RULE(literal), nullptr, Precedence::NONE};
 	rules[+TokenType::VAR]           = {nullptr, nullptr, Precedence::NONE};
 	rules[+TokenType::WHILE]         = {nullptr, nullptr, Precedence::NONE};
 	rules[+TokenType::ERROR]         = {nullptr, nullptr, Precedence::NONE};
 	rules[+TokenType::END_OF_FILE]   = {nullptr, nullptr, Precedence::NONE};
+#undef RULE
 }
 
 Chunk *Compiler::current_chunk() {
@@ -63,8 +66,10 @@ bool Compiler::compile(std::string_view src, Chunk &chunk) {
 	Scanner scanner(src);
 	compiling_chunk = &chunk;
 	advance();
-	expression();
-	consume(TokenType::END_OF_FILE, "Expect end of expression.");
+	
+	while (!match(TokenType::END_OF_FILE)) {
+		declaration();
+	}
 	return !parser.had_error;
 }
 
@@ -93,6 +98,16 @@ void Compiler::consume(TokenType type, std::string_view msg) {
 		return;
 	}
 	error_at_current(msg);
+}
+
+bool Compiler::match(TokenType type) {
+	if (!check(type)) return false;
+	advance();
+	return true;
+}
+
+bool Compiler::check(TokenType type) {
+	return parser.current.type == type;
 }
 
 void Compiler::emit_byte(u8 byte) {
@@ -125,15 +140,59 @@ void Compiler::expression() {
 	parse_precedence(Precedence::ASSIGNMENT);
 }
 
-void Compiler::number() {
+void Compiler::declaration() {
+	if (match(TokenType::VAR)) {
+		var_declaration();
+	}
+	else {
+		statement();
+	}
+	
+	if (parser.panic_mode) synchronize();
+}
+
+void Compiler::statement() {
+	if (match(TokenType::PRINT)) {
+		print_statement();
+	}
+	else {
+		expression_statement();
+	}
+}
+
+void Compiler::var_declaration() {
+	u8 global = parse_variable("Expect Variable name.");
+	if (match(TokenType::EQUAL)) {
+		expression();
+	}
+	else {
+		emit_byte(+OP::NIL);
+	}
+	consume(TokenType::SEMICOLON, "Expect ';' after variable declaration");
+	define_variable(global);
+}
+
+void Compiler::print_statement() {
+	expression();
+	consume(TokenType::SEMICOLON, "Expect ';' after value.");
+	emit_byte(+OP::PRINT);
+}
+
+void Compiler::expression_statement() {
+	expression();
+	consume(TokenType::SEMICOLON, "Expect ';' after expression.");
+	emit_byte(+OP::POP);
+}
+
+void Compiler::number(bool) {
 	double value = strtod(parser.previous.lexeme.begin(), nullptr);
 	emit_constant(LoxValue(value));
 }
-void Compiler::grouping() {
+void Compiler::grouping(bool) {
 	expression();
 	consume(TokenType::RIGHT_PAREN, "Expect ')' after expression.");
 }
-void Compiler::unary() {
+void Compiler::unary(bool) {
 	TokenType operator_type = parser.previous.type;
 	parse_precedence(Precedence::UNARY); // compile operand
 	switch (operator_type) {
@@ -142,7 +201,7 @@ void Compiler::unary() {
 		default: return;
 	}
 }
-void Compiler::binary() {
+void Compiler::binary(bool) {
 	TokenType operator_type = parser.previous.type;
 	ParseRule *rule = get_rule(operator_type);
 	parse_precedence(static_cast<Precedence>(+rule->precedence + 1));
@@ -161,7 +220,7 @@ void Compiler::binary() {
 	}
 }
 
-void Compiler::literal() {
+void Compiler::literal(bool) {
 	switch(parser.previous.type) {
 		case TokenType::FALSE: emit_byte(+OP::FALSE); break;
 		case TokenType::NIL: emit_byte(+OP::NIL); break;
@@ -170,8 +229,23 @@ void Compiler::literal() {
 	}
 }
 
-void Compiler::string() {
+void Compiler::string(bool) {
 	emit_constant(vm.make_ObjectString(parser.previous.lexeme.substr(1, parser.previous.lexeme.size() - 2)));
+}
+
+void Compiler::variable(bool can_assign) {
+	named_variable(parser.previous, can_assign);
+}
+
+void Compiler::named_variable(Token name, bool can_assign) {
+	u8 arg = identifier_constant(name);
+	if (can_assign && match(TokenType::EQUAL)) {
+		expression();
+		emit_bytes(+OP::SET_GLOBAL, arg);
+	}
+	else {
+		emit_bytes(+OP::GET_GLOBAL, arg);
+	}
 }
 
 void Compiler::parse_precedence(Precedence precedence) {
@@ -181,12 +255,31 @@ void Compiler::parse_precedence(Precedence precedence) {
 		error("Expect expression.");
 		return;
 	}
-	prefix_rule();
+	
+	bool can_assign = precedence <= Precedence::ASSIGNMENT;
+	prefix_rule(can_assign);
+
 	while (precedence <= get_rule(parser.current.type)->precedence) {
 		advance();
 		auto infix_rule = get_rule(parser.previous.type)->infix;
-		infix_rule();
+		infix_rule(can_assign);
 	}
+	if (can_assign && match(TokenType::EQUAL)) {
+		error("Invalid assignment target.");
+	}
+}
+
+u8 Compiler::identifier_constant(const Token &name) {
+	return make_constant(vm.make_ObjectString(name.lexeme));
+}
+
+u8 Compiler::parse_variable(std::string_view msg) {
+	consume(TokenType::IDENTIFIER, msg);
+	return identifier_constant(parser.previous);
+}
+
+void Compiler::define_variable(u8 global) {
+	emit_bytes(+OP::DEFINE_GLOBAL, global);
 }
 
 ParseRule *Compiler::get_rule(TokenType type) {
@@ -216,6 +309,26 @@ void Compiler::error(std::string_view msg) {
 }
 void Compiler::error_at_current(std::string_view msg) {
 	error_at(parser.current, msg);
+}
+
+void Compiler::synchronize() {
+	parser.panic_mode = false;
+	while (parser.current.type != TokenType::END_OF_FILE) {
+		if (parser.previous.type == TokenType::SEMICOLON) return;
+		switch (parser.current.type) {
+			case TokenType::CLASS:
+			case TokenType::FUN:
+			case TokenType::VAR:
+			case TokenType::FOR:
+			case TokenType::IF:
+			case TokenType::WHILE:
+			case TokenType::PRINT:
+			case TokenType::RETURN:
+				return;
+			default: break;// do nothing
+		}
+		advance();
+	}
 }
 
 }

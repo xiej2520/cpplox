@@ -97,6 +97,10 @@ LoxValue &VM::peek() {
 	return stack.back();
 }
 
+LoxValue VM::read_constant() {
+	return chunk->constants[*ip++];
+}
+
 InterpretResult VM::run() {
 	for (;;) {
 #ifdef DEBUG_TRACE_EXECUTION
@@ -112,7 +116,7 @@ InterpretResult VM::run() {
 		u8 instruction;
 		switch (instruction = *ip++) {
 		case +OP::CONSTANT: {
-			stack.push_back(chunk->constants[*ip++]);
+			stack.push_back(read_constant());
 			break;
 		}
 		case +OP::CONSTANT_LONG: {
@@ -124,6 +128,33 @@ InterpretResult VM::run() {
 		case +OP::NIL: stack.emplace_back(LoxValue()); break;
 		case +OP::TRUE: stack.emplace_back(LoxValue(true)); break;
 		case +OP::FALSE: stack.emplace_back(LoxValue(false)); break;
+		case +OP::POP: stack.pop_back(); break;
+		case +OP::GET_GLOBAL: {
+			ObjectString *name = (ObjectString *) read_constant().as.obj;
+			LoxValue value;
+			if (!globals.get(name, &value)) {
+				runtime_error("Undefined variable '{}'.", name->chars.get());
+				return INTERPRET_RUNTIME_ERROR;
+			}
+			stack.push_back(value);
+			break;
+		}
+		case +OP::DEFINE_GLOBAL: {
+			ObjectString *name = (ObjectString *) read_constant().as.obj;
+			globals.set(name, peek());
+			stack.pop_back();
+			break;
+		}
+		case +OP::SET_GLOBAL: {
+			ObjectString *name = (ObjectString *) read_constant().as.obj;
+			// using set to check if defined?
+			if (globals.set(name, peek())) {
+				globals.del(name);
+				runtime_error("Undefined variable '{}'", name->chars.get());
+				return INTERPRET_RUNTIME_ERROR;
+			}
+			break;
+		}
 		case +OP::EQUAL: {
 			peek(1) = LoxValue(peek(1) == peek(0));
 			stack.pop_back();
@@ -223,10 +254,12 @@ InterpretResult VM::run() {
 			peek().as.number *= -1;
 			break;
 		}
-		case +OP::RETURN: {
+		case +OP::PRINT: {
 			peek().print_value();
 			stack.pop_back();
-			fmt::print("\n");
+			break;
+		}
+		case +OP::RETURN: {
 			return INTERPRET_OK;
 		}
 		}

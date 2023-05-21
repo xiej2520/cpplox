@@ -54,6 +54,14 @@ int disassemble_instruction(Chunk &chunk, size_t offset) {
 			return simple_instruction("OP_TRUE", offset);
 		case +OP::FALSE:
 			return simple_instruction("OP_FALSE", offset);
+		case +OP::POP:
+			return simple_instruction("OP_POP", offset);
+		case +OP::GET_GLOBAL:
+			return constant_instruction("OP_GET_GLOBAL", chunk, offset);
+		case +OP::DEFINE_GLOBAL:
+			return constant_instruction("OP_DEFINE_GLOBAL", chunk, offset);
+		case +OP::SET_GLOBAL:
+			return constant_instruction("OP_SET_GLOBAL", chunk, offset);
 		case +OP::EQUAL:
 			return simple_instruction("OP_EQUAL", offset);
 		case +OP::NOT_EQUAL:
@@ -78,6 +86,8 @@ int disassemble_instruction(Chunk &chunk, size_t offset) {
 			return simple_instruction("OP_NOT", offset);
 		case +OP::NEGATE:
 			return simple_instruction("OP_NEGATE", offset);
+		case +OP::PRINT:
+			return simple_instruction("OP_PRINT", offset);
 		case +OP::RETURN:
 			return simple_instruction("OP_RETURN", offset);
 		default:

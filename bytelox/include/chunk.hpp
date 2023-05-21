@@ -20,6 +20,10 @@ enum class OP {
 	NIL,           // 1 byte
 	TRUE,          // 1 byte
 	FALSE,         // 1 byte
+	POP,           // 1 byte
+	GET_GLOBAL,    // 1 byte
+	DEFINE_GLOBAL, // 1 byte
+	SET_GLOBAL,    // 1 byte
 	EQUAL,         // 1 byte
 	NOT_EQUAL,     // 1 byte
 	GREATER,       // 1 byte
@@ -32,6 +36,7 @@ enum class OP {
 	DIV,           // 1 byte
 	NOT,           // 1 byte
 	NEGATE,        // 1 byte
+	PRINT,         // 1 byte
 	RETURN         // 1 byte
 };
 

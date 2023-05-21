@@ -21,6 +21,7 @@ struct VM {
 	u8 *ip = nullptr; // next instruction to be executed
 	std::vector<LoxValue> stack;
 	LoxObject *objects;
+	HashTable globals;
 	HashTable strings;
 
 	VM();
@@ -32,6 +33,7 @@ struct VM {
 	LoxValue &peek(size_t i);
 	// top of stack, no bounds check
 	LoxValue &peek();
+	LoxValue read_constant();
 	void concatenate();
 	
 	LoxValue make_LoxObject(LoxObject *obj);

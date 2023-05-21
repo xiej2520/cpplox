@@ -38,7 +38,8 @@ struct LoxObject {
 
 struct ObjectString {
 	LoxObject obj;
-	int length; // does NOT including trailing '\0'
+	u32 length; // does NOT including trailing '\0'
+	u32 hash;
 	std::unique_ptr<char[]> chars;
 	constexpr ObjectString(std::string_view str):
 		length(str.size()),
@@ -46,6 +47,13 @@ struct ObjectString {
 			obj.type = ObjectType::STRING;
 			std::memcpy(chars.get(), str.data(), str.size());
 			chars[length] = '\0';
+			// FNV-1a hash function
+			hash = 2166136261u;
+			for (u32 i=0; i<length; i++) {
+				hash ^= (u8) str[i];
+				hash *= 16777619;
+			}
+
 	}
 };
 
@@ -91,11 +99,7 @@ struct LoxValue {
 			case ValueType::BOOL: return as.boolean == that.as.boolean;
 			case ValueType::NIL: return true;
 			case ValueType::NUMBER: return as.number == that.as.number;
-			case ValueType::OBJECT: {
-				return as.obj->as_string()->length == that.as.obj->as_string()->length &&
-					memcmp(as.obj->as_string()->chars.get(), that.as.obj->as_string()->chars.get(),
-					as.obj->as_string()->length);
-			}
+			case ValueType::OBJECT: return as.obj == that.as.obj;
 			default: return false; // unreachable
 		}
 	}

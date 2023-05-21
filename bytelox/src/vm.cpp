@@ -51,7 +51,15 @@ LoxValue VM::make_LoxObject(LoxObject *obj) {
 
 LoxValue VM::make_ObjectString(std::string_view str) {
 	LoxValue res = make_LoxObject(nullptr);
-	res.as.obj = (LoxObject *) new ObjectString(str);
+	delete res.as.obj;
+	ObjectString *interned = strings.find_string(str);
+	if (interned == nullptr) {
+		res.as.obj = (LoxObject *) new ObjectString(str);
+		strings.set((ObjectString *) res.as.obj, LoxValue());
+	}
+	else {
+		res.as.obj = (LoxObject *) interned;
+	}
 	return res;	
 }
 

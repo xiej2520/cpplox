@@ -1,6 +1,7 @@
 #pragma once
 
 #include "chunk.hpp"
+#include "hash_table.hpp"
 
 #include <string>
 #include <vector>
@@ -20,6 +21,7 @@ struct VM {
 	u8 *ip = nullptr; // next instruction to be executed
 	std::vector<LoxValue> stack;
 	LoxObject *objects;
+	HashTable strings;
 
 	VM();
 	~VM();

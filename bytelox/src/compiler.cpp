@@ -56,6 +56,7 @@ Compiler::Compiler(Scanner &scanner, VM &vm): scanner(scanner), vm(vm) {
 	rules[+TokenType::ERROR]         = {nullptr, nullptr, Precedence::NONE};
 	rules[+TokenType::END_OF_FILE]   = {nullptr, nullptr, Precedence::NONE};
 #undef RULE
+	current = new LocalState;
 }
 
 Chunk *Compiler::current_chunk() {
@@ -136,6 +137,20 @@ u8 Compiler::make_constant(LoxValue value) {
 	return static_cast<u8>(constant);
 }
 
+void Compiler::begin_scope() {
+	current->scope_depth++;
+}
+
+void Compiler::end_scope() {
+	current->scope_depth--;
+	while (current->local_count > 0 &&
+			current->locals[current->local_count-1].depth > current->scope_depth){
+		// could be optimized to POPN
+		emit_byte(+OP::POP);
+		current->local_count--;
+	}
+}
+
 void Compiler::expression() {
 	parse_precedence(Precedence::ASSIGNMENT);
 }
@@ -154,6 +169,11 @@ void Compiler::declaration() {
 void Compiler::statement() {
 	if (match(TokenType::PRINT)) {
 		print_statement();
+	}
+	else if (match(TokenType::LEFT_BRACE)) {
+		begin_scope();
+		block();
+		end_scope();
 	}
 	else {
 		expression_statement();
@@ -182,6 +202,13 @@ void Compiler::expression_statement() {
 	expression();
 	consume(TokenType::SEMICOLON, "Expect ';' after expression.");
 	emit_byte(+OP::POP);
+}
+
+void Compiler::block() {
+	while (!check(TokenType::RIGHT_BRACE) && !check(TokenType::END_OF_FILE)) {
+		declaration();
+	}
+	consume(TokenType::RIGHT_BRACE, "Expect '}' after block.");
 }
 
 void Compiler::number(bool) {
@@ -238,13 +265,23 @@ void Compiler::variable(bool can_assign) {
 }
 
 void Compiler::named_variable(Token name, bool can_assign) {
-	u8 arg = identifier_constant(name);
-	if (can_assign && match(TokenType::EQUAL)) {
-		expression();
-		emit_bytes(+OP::SET_GLOBAL, arg);
+	u8 get_op, set_op;
+	int arg = resolve_local(*current, name);
+	if (arg != -1) {
+		get_op = +OP::GET_LOCAL;
+		set_op = +OP::SET_LOCAL;
 	}
 	else {
-		emit_bytes(+OP::GET_GLOBAL, arg);
+		arg = identifier_constant(name);
+		get_op = +OP::GET_GLOBAL;
+		set_op = +OP::SET_GLOBAL;
+	}
+	if (can_assign && match(TokenType::EQUAL)) {
+		expression();
+		emit_bytes(set_op, static_cast<u8>(arg));
+	}
+	else {
+		emit_bytes(get_op, static_cast<u8>(arg));
 	}
 }
 
@@ -273,13 +310,64 @@ u8 Compiler::identifier_constant(const Token &name) {
 	return make_constant(vm.make_ObjectString(name.lexeme));
 }
 
+bool Compiler::identifiers_equal(Token &a, Token &b) {
+	return a.lexeme == b.lexeme;
+}
+
+int Compiler::resolve_local(LocalState &ls, Token &name) {
+	for (int i=ls.local_count-1; i>=0; i--) {
+		if (identifiers_equal(name, ls.locals[i].name)) {
+			if (ls.locals[i].depth == -1) {
+				error("Can't read local variable in its own initializer.");
+			}
+			return i;
+		}
+	}
+	return -1;
+}
+
 u8 Compiler::parse_variable(std::string_view msg) {
 	consume(TokenType::IDENTIFIER, msg);
+	
+	declare_variable();
+	if (current->scope_depth > 0) return 0;
+
 	return identifier_constant(parser.previous);
 }
 
+void Compiler::declare_variable() {
+	if (current->scope_depth == 0) {
+		return;
+	}
+	for (int i=current->local_count - 1; i>=0; i--) {
+		Local *local = &current->locals[i];
+		if (local->depth != -1 && local->depth < current->scope_depth) {
+			break;
+		}
+		if (identifiers_equal(parser.previous, local->name)) {
+			error("Already a variable with this name in this scope.");
+		}
+	}
+	add_local(parser.previous);
+}
+
 void Compiler::define_variable(u8 global) {
+	if (current->scope_depth > 0) {
+		mark_initialized();
+		// local variables are on top of the stack when allocated
+		return;
+	}
 	emit_bytes(+OP::DEFINE_GLOBAL, global);
+}
+
+void Compiler::mark_initialized() {
+	current->locals[current->local_count-1].depth = current->scope_depth;
+}
+
+void Compiler::add_local(Token name) {
+	Local *local = &current->locals[current->local_count++];
+	local->name = name;
+	local->depth = -1; // uninitialized
 }
 
 ParseRule *Compiler::get_rule(TokenType type) {

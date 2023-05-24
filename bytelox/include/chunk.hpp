@@ -21,6 +21,8 @@ enum class OP {
 	TRUE,          // 1 byte
 	FALSE,         // 1 byte
 	POP,           // 1 byte
+	GET_LOCAL,     // 1 byte
+	SET_LOCAL,     // 1 byte
 	GET_GLOBAL,    // 1 byte
 	DEFINE_GLOBAL, // 1 byte
 	SET_GLOBAL,    // 1 byte

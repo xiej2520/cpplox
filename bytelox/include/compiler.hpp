@@ -33,6 +33,16 @@ constexpr int num_parse = 40;
 struct VM;
 
 struct Compiler {
+	struct Local {
+		Token name;
+		int depth;
+	};
+
+	struct LocalState {
+		Local locals[UINT8_MAX + 1];
+		int local_count = 0;
+		int scope_depth = 0;
+	};
 	
 	std::array<ParseRule, num_parse> rules;
 	
@@ -45,6 +55,7 @@ struct Compiler {
 	
 	Scanner &scanner;
 	VM &vm; // for adding LoxObject constants that need to have references for GC
+	LocalState *current = nullptr;
 	
 	Chunk *compiling_chunk = nullptr;
 	Chunk *current_chunk();
@@ -65,6 +76,9 @@ struct Compiler {
 	
 	u8 make_constant(LoxValue value);
 	
+	void begin_scope();
+	void end_scope();
+	
 	void expression();
 	void declaration();
 	void statement();
@@ -72,6 +86,7 @@ struct Compiler {
 	
 	void print_statement();
 	void expression_statement();
+	void block();
 	
 	void number(bool);
 	void grouping(bool);
@@ -84,8 +99,13 @@ struct Compiler {
 	
 	void parse_precedence(Precedence precedence);
 	u8 identifier_constant(const Token &name);
+	bool identifiers_equal(Token &a, Token &b);
+	int resolve_local(LocalState &ls, Token &name);
 	u8 parse_variable(std::string_view msg);
+	void declare_variable();
 	void define_variable(u8 global);
+	void mark_initialized();
+	void add_local(Token name);
 	ParseRule *get_rule(TokenType type);
 	
 	void error_at_current(std::string_view msg);

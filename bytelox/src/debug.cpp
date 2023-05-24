@@ -15,17 +15,23 @@ int simple_instruction(std::string_view name, int offset) {
 }
 int constant_instruction(std::string_view name, Chunk &chunk, int offset) {
 	u8 index = chunk.code[offset + 1];
-	fmt::print("{:<16} {} '", name, index);
+	fmt::print("{:<16} {:4} '", name, index);
 	chunk.constants[index].print_value();
 	fmt::print("'\n");
 	return offset + 2;
 }
 int constant_long_instruction(std::string_view name, Chunk &chunk, int offset) {
 	size_t index = chunk.code[offset+1] | (chunk.code[offset+2] << 8) | (chunk.code[offset+3] << 16);
-	fmt::print("{:<16} {} '", name, index);
+	fmt::print("{:<16} {:4} '", name, index);
 	chunk.constants[index].print_value();
 	fmt::print("'\n");
 	return offset + 4;
+}
+
+int byte_instruction(std::string_view name, Chunk &chunk, int offset) {
+	u8 slot = chunk.code[offset + 1];
+	fmt::print("{:<16} {:4}\n", name, slot);
+	return offset + 2;
 }
 
 }
@@ -56,6 +62,10 @@ int disassemble_instruction(Chunk &chunk, size_t offset) {
 			return simple_instruction("OP_FALSE", offset);
 		case +OP::POP:
 			return simple_instruction("OP_POP", offset);
+		case +OP::GET_LOCAL:
+			return byte_instruction("OP_GET_LOCAL", chunk, offset);
+		case +OP::SET_LOCAL:
+			return byte_instruction("OP_SET_LOCAL", chunk, offset);
 		case +OP::GET_GLOBAL:
 			return constant_instruction("OP_GET_GLOBAL", chunk, offset);
 		case +OP::DEFINE_GLOBAL:

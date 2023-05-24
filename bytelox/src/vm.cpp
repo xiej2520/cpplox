@@ -129,6 +129,16 @@ InterpretResult VM::run() {
 		case +OP::TRUE: stack.emplace_back(LoxValue(true)); break;
 		case +OP::FALSE: stack.emplace_back(LoxValue(false)); break;
 		case +OP::POP: stack.pop_back(); break;
+		case +OP::GET_LOCAL: {
+			u8 slot = *ip++;
+			stack.push_back(stack[slot]); // loads local to top of stack
+			break;
+		}
+		case +OP::SET_LOCAL: {
+			u8 slot = *ip++;
+			stack[slot] = peek();
+			break;
+		}
 		case +OP::GET_GLOBAL: {
 			ObjectString *name = (ObjectString *) read_constant().as.obj;
 			LoxValue value;

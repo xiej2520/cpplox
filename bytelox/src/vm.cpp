@@ -103,6 +103,7 @@ LoxValue VM::read_constant() {
 
 InterpretResult VM::run() {
 	for (;;) {
+#undef DEBUG_TRACE_EXECUTION
 #ifdef DEBUG_TRACE_EXECUTION
 		fmt::print("          ");
 		for (LoxValue value : stack) {
@@ -267,6 +268,25 @@ InterpretResult VM::run() {
 		case +OP::PRINT: {
 			peek().print_value();
 			stack.pop_back();
+			break;
+		}
+		case +OP::JUMP: {
+			u16 offset = *ip | (*(ip+1) << 8);
+			ip += offset;
+			break;
+		}
+		case +OP::JUMP_IF_FALSE: {
+			if (is_falsey(peek())) {
+				u16 offset = *ip | (*(ip+1) << 8);
+				ip += offset;
+				break;
+			}
+			ip += 2; // past offset
+			break;
+		}
+		case +OP::LOOP: {
+			u16 offset = *ip | (*(ip+1) << 8);
+			ip -= offset;
 			break;
 		}
 		case +OP::RETURN: {

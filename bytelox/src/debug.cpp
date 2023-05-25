@@ -34,6 +34,12 @@ int byte_instruction(std::string_view name, Chunk &chunk, int offset) {
 	return offset + 2;
 }
 
+int jump_instruction(std::string_view name, int sign, Chunk &chunk, int offset) {
+	u16 jump = *((u16 *) (&chunk.code[offset + 1])); // stored in little endian
+	fmt::print("{:<16} {:4} -> {}\n", name, offset, offset + 1 + sign * jump);
+	return offset + 3;
+}
+
 }
 
 namespace bytelox {
@@ -98,6 +104,12 @@ int disassemble_instruction(Chunk &chunk, size_t offset) {
 			return simple_instruction("OP_NEGATE", offset);
 		case +OP::PRINT:
 			return simple_instruction("OP_PRINT", offset);
+		case +OP::JUMP:
+			return jump_instruction("OP_JUMP", 1, chunk, offset);
+		case +OP::JUMP_IF_FALSE:
+			return jump_instruction("OP_JUMP_IF_FALSE", 1, chunk, offset);
+		case +OP::LOOP:
+			return jump_instruction("OP_LOOP", -1, chunk, offset);
 		case +OP::RETURN:
 			return simple_instruction("OP_RETURN", offset);
 		default:

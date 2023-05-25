@@ -39,6 +39,9 @@ enum class OP {
 	NOT,           // 1 byte
 	NEGATE,        // 1 byte
 	PRINT,         // 1 byte
+	JUMP,          // 3 bytes, 2 byte little endian offset
+	JUMP_IF_FALSE, // 3 bytes, 2 byte little endian offset
+	LOOP,          // 3 bytes, 2 byte little endian offset
 	RETURN         // 1 byte
 };
 

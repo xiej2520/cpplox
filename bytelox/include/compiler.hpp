@@ -71,7 +71,10 @@ struct Compiler {
 	bool check(TokenType type);
 	void emit_byte(u8 byte);
 	void emit_bytes(u8 byte1, u8 byte2);
+	void emit_loop(int loop_start);
+	int emit_jump(u8 instruction);
 	void emit_constant(LoxValue value);
+	void patch_jump(int offset);
 	void emit_return();
 	
 	u8 make_constant(LoxValue value);
@@ -87,6 +90,9 @@ struct Compiler {
 	void print_statement();
 	void expression_statement();
 	void block();
+	void if_statement();
+	void while_statement();
+	void for_statement();
 	
 	void number(bool);
 	void grouping(bool);
@@ -96,6 +102,8 @@ struct Compiler {
 	void string(bool);
 	void variable(bool can_assign);
 	void named_variable(Token name, bool can_assign);
+	void and_(bool);
+	void or_(bool);
 	
 	void parse_precedence(Precedence precedence);
 	u8 identifier_constant(const Token &name);

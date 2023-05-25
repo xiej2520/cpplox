@@ -37,7 +37,7 @@ Compiler::Compiler(Scanner &scanner, VM &vm): scanner(scanner), vm(vm) {
 	rules[+TokenType::IDENTIFIER]    = {RULE(variable), nullptr, Precedence::NONE};
 	rules[+TokenType::STRING]        = {RULE(string), nullptr, Precedence::NONE};
 	rules[+TokenType::NUMBER]        = {RULE(number), nullptr, Precedence::NONE};
-	rules[+TokenType::AND]           = {nullptr, nullptr, Precedence::NONE};
+	rules[+TokenType::AND]           = {nullptr, RULE(and_), Precedence::NONE};
 	rules[+TokenType::CLASS]         = {nullptr, nullptr, Precedence::NONE};
 	rules[+TokenType::ELSE]          = {nullptr, nullptr, Precedence::NONE};
 	rules[+TokenType::FALSE]         = {RULE(literal), nullptr, Precedence::NONE};
@@ -45,7 +45,7 @@ Compiler::Compiler(Scanner &scanner, VM &vm): scanner(scanner), vm(vm) {
 	rules[+TokenType::FUN]           = {nullptr, nullptr, Precedence::NONE};
 	rules[+TokenType::IF]            = {nullptr, nullptr, Precedence::NONE};
 	rules[+TokenType::NIL]           = {RULE(literal), nullptr, Precedence::NONE};
-	rules[+TokenType::OR]            = {nullptr, nullptr, Precedence::NONE};
+	rules[+TokenType::OR]            = {nullptr, RULE(or_), Precedence::NONE};
 	rules[+TokenType::PRINT]         = {nullptr, nullptr, Precedence::NONE};
 	rules[+TokenType::RETURN]        = {nullptr, nullptr, Precedence::NONE};
 	rules[+TokenType::SUPER]         = {nullptr, nullptr, Precedence::NONE};
@@ -115,12 +115,40 @@ void Compiler::emit_byte(u8 byte) {
 	current_chunk()->write(byte, parser.previous.line);
 }
 void Compiler::emit_bytes(u8 byte1, u8 byte2) {
-	emit_byte(byte1);
-	emit_byte(byte2);
+	current_chunk()->write(byte1, parser.previous.line);
+	current_chunk()->write(byte2, parser.previous.line);
+}
+
+void Compiler::emit_loop(int loop_start) {
+	emit_byte(+OP::LOOP);
+	
+	int offset = current_chunk()->code.size() - loop_start;
+	if (offset > UINT16_MAX) {
+		error("Loop body is too large.");
+	}
+	
+	emit_bytes(offset & 0xFF, (offset >> 8) & 0xFF); // little endian
+}
+
+int Compiler::emit_jump(u8 instruction) {
+	emit_byte(instruction);
+	emit_bytes(0xFF, 0xFF);
+	return current_chunk()->code.size()-2;
 }
 
 void Compiler::emit_constant(LoxValue value) {
 	emit_bytes(+OP::CONSTANT, make_constant(value));
+}
+
+void Compiler::patch_jump(int offset) {
+	int jump = current_chunk()->code.size() - offset; // no bytecode jump offset, taken care of
+	if (jump > UINT16_MAX) {
+		error("Too much code to jump over.");
+	}
+	
+	// little endian
+	current_chunk()->code[offset] = jump & 0xFF;
+	current_chunk()->code[offset + 1] = (jump >> 8)  & 0xFF;
 }
 
 void Compiler::emit_return() {
@@ -170,6 +198,15 @@ void Compiler::statement() {
 	if (match(TokenType::PRINT)) {
 		print_statement();
 	}
+	else if (match(TokenType::IF)) {
+		if_statement();
+	}
+	else if (match(TokenType::WHILE)) {
+		while_statement();
+	}
+	else if (match(TokenType::FOR)) {
+		for_statement();
+	}
 	else if (match(TokenType::LEFT_BRACE)) {
 		begin_scope();
 		block();
@@ -198,6 +235,39 @@ void Compiler::print_statement() {
 	emit_byte(+OP::PRINT);
 }
 
+void Compiler::if_statement() {
+	consume(TokenType::LEFT_PAREN, "Expect '(' after 'if'.");
+	expression();
+	consume(TokenType::RIGHT_PAREN, "Expect ')' after condition.");
+	
+	int then_jump = emit_jump(+OP::JUMP_IF_FALSE);
+	emit_byte(+OP::POP);
+	statement();
+
+	int else_jump = emit_jump(+OP::JUMP);
+	patch_jump(then_jump);
+	emit_byte(+OP::POP);
+	if (match(TokenType::ELSE)) {
+		statement();
+	}
+	patch_jump(else_jump);
+}
+
+void Compiler::while_statement() {
+	int loop_start = current_chunk()->code.size();
+	consume(TokenType::LEFT_PAREN, "Expect '(' after 'while'.");
+	expression();
+	consume(TokenType::RIGHT_PAREN, "Expect ')' after condition.");
+	
+	int exit_jump = emit_jump(+OP::JUMP_IF_FALSE);
+	emit_byte(+OP::POP);
+	statement();
+	emit_loop(loop_start);
+
+	patch_jump(exit_jump);
+	emit_byte(+OP::POP);
+}
+
 void Compiler::expression_statement() {
 	expression();
 	consume(TokenType::SEMICOLON, "Expect ';' after expression.");
@@ -209,6 +279,51 @@ void Compiler::block() {
 		declaration();
 	}
 	consume(TokenType::RIGHT_BRACE, "Expect '}' after block.");
+}
+
+void Compiler::for_statement() {
+	begin_scope();
+	consume(TokenType::LEFT_PAREN, "Expect '(' after 'for'.");
+	if (match(TokenType::SEMICOLON)) {
+		// no initializer
+	}
+	else if (match(TokenType::VAR)) {
+		var_declaration();
+	}
+	else {
+		expression_statement();
+	}
+
+	int loop_start = current_chunk()->code.size();
+	int exit_jump = -1;
+	if (!match(TokenType::SEMICOLON)) {
+		expression();
+		consume(TokenType::SEMICOLON, "Expect ';' after loop condition.");
+		exit_jump = emit_jump(+OP::JUMP_IF_FALSE);
+		emit_byte(+OP::POP);
+	}
+	
+	if (!match(TokenType::RIGHT_PAREN)) {
+		int body_jump = emit_jump(+OP::JUMP);
+		int increment_start = current_chunk()->code.size();
+		expression();
+		emit_byte(+OP::POP);
+		consume(TokenType::RIGHT_PAREN, "Expect ')' after for clauses.");
+		
+		emit_loop(loop_start);
+		loop_start = increment_start;
+		patch_jump(body_jump);
+	}
+	
+	statement();
+	emit_loop(loop_start);
+
+	if (exit_jump != -1) {
+		patch_jump(exit_jump);
+		emit_byte(+OP::POP); // pop condition
+	}
+
+	end_scope();
 }
 
 void Compiler::number(bool) {
@@ -283,6 +398,24 @@ void Compiler::named_variable(Token name, bool can_assign) {
 	else {
 		emit_bytes(get_op, static_cast<u8>(arg));
 	}
+}
+
+void Compiler::and_(bool) {
+	int end_jump = emit_jump(+OP::JUMP_IF_FALSE);
+	emit_byte(+OP::POP);
+	parse_precedence(Precedence::AND);
+	patch_jump(end_jump);
+}
+
+// implement this in a faster way with OP::JUMP_IF_TRUE
+void Compiler::or_(bool) {
+	int else_jump = emit_jump(+OP::JUMP_IF_FALSE);
+	int end_jump = emit_jump(+OP::JUMP);
+	
+	patch_jump(else_jump);
+	emit_byte(+OP::POP);
+	parse_precedence(Precedence::OR);
+	patch_jump(end_jump);
 }
 
 void Compiler::parse_precedence(Precedence precedence) {

@@ -42,6 +42,7 @@ enum class OP {
 	JUMP,          // 3 bytes, 2 byte little endian offset
 	JUMP_IF_FALSE, // 3 bytes, 2 byte little endian offset
 	LOOP,          // 3 bytes, 2 byte little endian offset
+	CALL,          // 
 	RETURN         // 1 byte
 };
 
@@ -50,6 +51,7 @@ struct RLE {
 	// if line == 0, this means skip lines by count
 	u16 line; 
 	u16 count;
+	RLE(u16 line, u16 count): line(line), count(count) {}
 };
 
 struct Chunk {

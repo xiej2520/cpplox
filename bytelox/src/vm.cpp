@@ -1,16 +1,22 @@
 #include "common.hpp"
+#include "lox_object.hpp"
 #include "lox_value.hpp"
 #include "vm.hpp"
 #include "debug.hpp"
 #include "compiler.hpp"
 
-#include "fmt/core.h"
-
 namespace bytelox {
+
+#include <time.h>
+LoxValue clock_native(int, LoxValue *) {
+	return LoxValue((double) clock() / CLOCKS_PER_SEC);
+}
 
 using enum InterpretResult;
 
-VM::VM(): objects(nullptr) { }
+VM::VM(): objects(nullptr) {
+	define_native("clock", clock_native);
+}
 
 VM::~VM() {
 	while (objects != nullptr) {
@@ -21,18 +27,15 @@ VM::~VM() {
 }
 
 InterpretResult VM::interpret(std::string_view src) {
-	chunk = new Chunk;
 	Scanner scanner(src);
 	Compiler compiler(scanner, *this);
-	if (!compiler.compile(src, *chunk)) {
-		delete chunk;
-		return INTERPRET_COMPILE_ERROR;
-	}
-	compiler.end_compiler();
-	ip = chunk->code.data(); // instruction pointer
-	InterpretResult res = run();
-	delete chunk;
-	return res;
+	ObjectFunction *fn = compiler.compile(src);
+	if (fn == nullptr) return INTERPRET_COMPILE_ERROR;
+	
+	stack.push_back(make_ObjectFunction(fn));
+	frames.emplace_back(fn, fn->chunk.code.data(), 0);
+
+	return run();
 }
 
 LoxValue VM::make_LoxObject(LoxObject *obj) {
@@ -50,12 +53,14 @@ LoxValue VM::make_LoxObject(LoxObject *obj) {
 }
 
 LoxValue VM::make_ObjectString(std::string_view str) {
-	LoxValue res = make_LoxObject(nullptr);
-	delete res.as.obj;
+	LoxValue res;
+	res.type = ValueType::OBJECT;
 	ObjectString *interned = strings.find_string(str);
 	if (interned == nullptr) {
 		res.as.obj = (LoxObject *) new ObjectString(str);
 		strings.set((ObjectString *) res.as.obj, LoxValue());
+		res.as.obj->next = objects;
+		objects = res.as.obj;
 	}
 	else {
 		res.as.obj = (LoxObject *) interned;
@@ -63,12 +68,49 @@ LoxValue VM::make_ObjectString(std::string_view str) {
 	return res;	
 }
 
+// end_compiler takes the function from the LocalState, pass it here to create
+// it in the VM
+LoxValue VM::make_ObjectFunction(ObjectFunction *fn) {
+	LoxValue res;
+	res.type = ValueType::OBJECT;
+	res.as.obj = (LoxObject *) fn;
+	res.as.obj->next = objects;
+	objects = res.as.obj;
+	return res;
+}
+
+LoxValue VM::make_ObjectNative(NativeFn function) {
+	LoxValue res;
+	res.type = ValueType::OBJECT;
+	res.as.obj = (LoxObject *) new ObjectNative(function);
+	res.as.obj->next = objects;
+	objects = res.as.obj;
+	return res;
+}
+
 void VM::free_LoxObject(LoxObject *object) {
 	switch (object->type) {
 		case ObjectType::STRING: {
 			delete object; // unique_ptr frees chars
+			break;
 		}
+		case ObjectType::FUNCTION: {
+			delete object;
+			break;
+		}
+		case ObjectType::NATIVE: {
+			delete object;
+			break;
+		} 
 	}
+}
+
+void VM::define_native(std::string_view name, NativeFn fn) {
+	stack.push_back(make_ObjectString(name));
+	stack.push_back(make_ObjectNative(fn));
+	globals.set(&stack[0].as.obj->as_string(), stack[1]);
+	stack.pop_back();
+	stack.pop_back();
 }
 
 bool is_falsey(LoxValue value) {
@@ -76,15 +118,15 @@ bool is_falsey(LoxValue value) {
 }
 
 void VM::concatenate() {
-	ObjectString &b = peek().as_string();
-	ObjectString &a = peek(1).as_string();
+	ObjectString &b = peek().as.obj->as_string();
+	ObjectString &a = peek(1).as.obj->as_string();
 	int length = a.length + b.length;
 	std::unique_ptr<char[]> chars = std::make_unique_for_overwrite<char[]>(length + 1);
 	std::memcpy(chars.get(), a.chars.get(), a.length);
 	std::memcpy(chars.get() + a.length, b.chars.get(), b.length);
 	chars[length] = '\0';
-	peek(1).as_string().length = length;
-	peek(1).as_string().chars = std::move(chars);
+	peek(1).as.obj->as_string().length = length;
+	peek(1).as.obj->as_string().chars = std::move(chars);
 	stack.pop_back();
 }
 
@@ -97,12 +139,40 @@ LoxValue &VM::peek() {
 	return stack.back();
 }
 
-LoxValue VM::read_constant() {
-	return chunk->constants[*ip++];
+bool VM::call(ObjectFunction *fn, int arg_count) {
+	if (arg_count != fn->arity) {
+		runtime_error("Expected {} arguments but got {}.", fn->arity, arg_count);
+		return false;
+	}
+	frames.emplace_back(fn, fn->chunk.code.data(), stack.size() - arg_count);
+	return true;
+}
+
+bool VM::call_value(LoxValue callee, int arg_count) {
+	if (callee.is_object()) {
+		switch(callee.as.obj->type) {
+			case ObjectType::FUNCTION: return call(&callee.as.obj->as_function(), arg_count);
+			case ObjectType::NATIVE: {
+				NativeFn native = callee.as.obj->as_native().function;
+				LoxValue result = native(arg_count, &stack.back() - arg_count + 1);
+				stack.resize(stack.size() - arg_count); // get rid of args (leave first for inplace)
+				stack.back() = result;
+				return true;
+			}
+			default: break; // Non-callable object typ
+		}
+	}
+	runtime_error("Can only call functions and classes.");
+	return false;
+}
+
+LoxValue VM::read_constant(CallFrame *frame) {
+	return frame->function->chunk.constants[*frame->ip++];
 }
 
 InterpretResult VM::run() {
 	for (;;) {
+		CallFrame *frame = &frames.back();
 #undef DEBUG_TRACE_EXECUTION
 #ifdef DEBUG_TRACE_EXECUTION
 		fmt::print("          ");
@@ -112,17 +182,18 @@ InterpretResult VM::run() {
 			fmt::print((" ]"));
 		}
 		fmt::print("\n");
-		disassemble_instruction(*chunk, ip - chunk->code.data());
+		disassemble_instruction(frame->function->chunk, frame->ip - frame->function->chunk.code.data());
 #endif
+#define READ_BYTE() (*frame->ip++)
 		u8 instruction;
-		switch (instruction = *ip++) {
+		switch (instruction = *frame->ip++) {
 		case +OP::CONSTANT: {
-			stack.push_back(read_constant());
+			stack.push_back(read_constant(frame));
 			break;
 		}
 		case +OP::CONSTANT_LONG: {
-			size_t index = *ip | (*(ip+1) << 8) | (*(ip+2) << 8);
-			ip += 3;
+			size_t index = *frame->ip | (*(frame->ip+1) << 8) | (*(frame->ip+2) << 16);
+			frame->ip += 3;
 			stack.push_back(chunk->constants[index]);
 			break;
 		}
@@ -131,17 +202,17 @@ InterpretResult VM::run() {
 		case +OP::FALSE: stack.emplace_back(LoxValue(false)); break;
 		case +OP::POP: stack.pop_back(); break;
 		case +OP::GET_LOCAL: {
-			u8 slot = *ip++;
+			u8 slot = *frame->ip++ + frame->slots;
 			stack.push_back(stack[slot]); // loads local to top of stack
 			break;
 		}
 		case +OP::SET_LOCAL: {
-			u8 slot = *ip++;
+			u8 slot = *frame->ip++ + frame->slots;
 			stack[slot] = peek();
 			break;
 		}
 		case +OP::GET_GLOBAL: {
-			ObjectString *name = (ObjectString *) read_constant().as.obj;
+			ObjectString *name = &read_constant(frame).as.obj->as_string();
 			LoxValue value;
 			if (!globals.get(name, &value)) {
 				runtime_error("Undefined variable '{}'.", name->chars.get());
@@ -151,13 +222,13 @@ InterpretResult VM::run() {
 			break;
 		}
 		case +OP::DEFINE_GLOBAL: {
-			ObjectString *name = (ObjectString *) read_constant().as.obj;
+			ObjectString *name = &read_constant(frame).as.obj->as_string();
 			globals.set(name, peek());
 			stack.pop_back();
 			break;
 		}
 		case +OP::SET_GLOBAL: {
-			ObjectString *name = (ObjectString *) read_constant().as.obj;
+			ObjectString *name = (ObjectString *) read_constant(frame).as.obj;
 			// using set to check if defined?
 			if (globals.set(name, peek())) {
 				globals.del(name);
@@ -213,7 +284,7 @@ InterpretResult VM::run() {
 			break;
 		}
 		case +OP::ADD: {
-			if (peek().is_string() && peek(1).is_string()) {
+			if (peek().is_object() && peek().as.obj->is_string() && peek(1).is_object() && peek(1).as.obj->is_string()) {
 				concatenate();
 			}
 			else if (peek().is_number() && peek(1).is_number()) {
@@ -271,26 +342,46 @@ InterpretResult VM::run() {
 			break;
 		}
 		case +OP::JUMP: {
-			u16 offset = *ip | (*(ip+1) << 8);
-			ip += offset;
+			u16 offset = *frame->ip | (*(frame->ip+1) << 8);
+			frame->ip += offset;
 			break;
 		}
 		case +OP::JUMP_IF_FALSE: {
 			if (is_falsey(peek())) {
-				u16 offset = *ip | (*(ip+1) << 8);
-				ip += offset;
+				u16 offset = *frame->ip | (*(frame->ip+1) << 8);
+				frame->ip += offset;
 				break;
 			}
-			ip += 2; // past offset
+			frame->ip += 2; // past offset
 			break;
 		}
 		case +OP::LOOP: {
-			u16 offset = *ip | (*(ip+1) << 8);
-			ip -= offset;
+			u16 offset = *frame->ip | (*(frame->ip+1) << 8);
+			frame->ip -= offset;
+			break;
+		}
+		case +OP::CALL: {
+			int arg_count = *frame->ip++;
+			if (!call_value(peek(arg_count), arg_count)) {
+				return INTERPRET_RUNTIME_ERROR;
+			}
+			frame = &frames.back();
 			break;
 		}
 		case +OP::RETURN: {
-			return INTERPRET_OK;
+			LoxValue result = stack.back();
+			stack.pop_back(); // get rid of returned value
+			if (frames.size() == 1) { // last frame popped
+				frames.pop_back();
+				stack.pop_back();
+				return INTERPRET_OK;
+			}
+			
+			stack.resize(frame->slots - 1); // resize stack down
+			stack.push_back(result); // put result at top of stack
+			frames.pop_back(); // drop frame
+			frame = &frames.back();
+			break;
 		}
 		}
 	}
@@ -300,9 +391,18 @@ template<typename... Args>
 void VM::runtime_error(fmt::format_string<Args...> format, Args&&... args) {
 	fmt::vprint(stderr, format, fmt::make_format_args(std::forward<Args>(args)...)); // wow
 	fmt::print(stderr, "\n");
+	for (int i=frames.size()-1; i>=0; i--) {
+		CallFrame &frame = frames[i];
+		ObjectFunction *fn = frame.function;
+		size_t instruction = frame.ip - fn->chunk.code.data() - 1;
+		fmt::print(stderr, "[line {}] in ", fn->chunk.get_line(instruction));
+		if (fn->name == nullptr) fmt::print(stderr, "script\n");
+		else fmt::print(stderr, "{}()\n", fn->name->chars.get());
+	}
 
-	size_t instruction = ip - chunk->code.data() - 1; // ip advances before executing
-	u16 line = chunk->get_line(instruction);
+	CallFrame &frame = frames.back();
+	size_t instruction = frame.ip - frame.function->chunk.code.data() - 1; // ip advances before executing
+	u16 line = frame.function->chunk.get_line(instruction);
 	fmt::print(stderr, "[line {}] in script\n", line);
 	reset_stack();
 }

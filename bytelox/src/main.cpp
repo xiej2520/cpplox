@@ -7,6 +7,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#define FMT_HEADER_ONLY
 #include "fmt/core.h"
 
 using namespace bytelox;

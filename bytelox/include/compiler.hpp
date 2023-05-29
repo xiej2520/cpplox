@@ -2,6 +2,7 @@
 
 #include "chunk.hpp"
 #include "scanner.hpp"
+#include "lox_object.hpp"
 
 #include <functional>
 #include <string>
@@ -37,11 +38,21 @@ struct Compiler {
 		Token name;
 		int depth;
 	};
+	
+	enum class FunctionType {
+		FUNCTION,
+		SCRIPT
+	};
 
+	// rename to LocalScope?
 	struct LocalState {
+		LocalState *enclosing = nullptr;
+		ObjectFunction *function = nullptr;
+		FunctionType type = FunctionType::SCRIPT;
 		Local locals[UINT8_MAX + 1];
 		int local_count = 0;
 		int scope_depth = 0;
+		LocalState(Compiler &compiler, FunctionType type);
 	};
 	
 	std::array<ParseRule, num_parse> rules;
@@ -61,9 +72,10 @@ struct Compiler {
 	Chunk *current_chunk();
 	
 	Compiler(Scanner &scanner, VM &vm);
+	~Compiler();
 
-	bool compile(std::string_view src, Chunk &chunk);
-	void end_compiler();
+	ObjectFunction *compile(std::string_view src);
+	ObjectFunction *end_compiler();
 
 	void advance();
 	void consume(TokenType type, std::string_view msg);
@@ -86,6 +98,7 @@ struct Compiler {
 	void declaration();
 	void statement();
 	void var_declaration();
+	void fun_declaration();
 	
 	void print_statement();
 	void expression_statement();
@@ -93,6 +106,8 @@ struct Compiler {
 	void if_statement();
 	void while_statement();
 	void for_statement();
+	void function(FunctionType type);
+	void return_statement();
 	
 	void number(bool);
 	void grouping(bool);
@@ -104,6 +119,8 @@ struct Compiler {
 	void named_variable(Token name, bool can_assign);
 	void and_(bool);
 	void or_(bool);
+	void call(bool);
+	u8 argument_list();
 	
 	void parse_precedence(Precedence precedence);
 	u8 identifier_constant(const Token &name);

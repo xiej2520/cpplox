@@ -5,7 +5,7 @@ namespace bytelox {
 void Chunk::write(u8 byte, u16 line) {
 	code.push_back(byte);
 	if (lines.empty() || lines.back().line != line) {
-		lines.push_back({line, 1});
+		lines.emplace_back(line, 1);
 	}
 	else {
 		lines.back().count++;

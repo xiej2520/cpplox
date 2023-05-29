@@ -6,16 +6,25 @@
 #include "debug.hpp"
 #endif
 
+#define FMT_HEADER_ONLY
 #include "fmt/core.h"
 
 namespace bytelox {
+
+Compiler::LocalState::LocalState(Compiler &compiler, FunctionType type): enclosing(compiler.current), type(type) {
+	compiler.current = this;
+	function = new ObjectFunction;
+	if (type != FunctionType::SCRIPT) {
+		function->name = &(compiler.vm.make_ObjectString(compiler.parser.previous.lexeme).as.obj->as_string());
+	}
+}
 
 using ParseFn = void (*)();
 
 Compiler::Compiler(Scanner &scanner, VM &vm): scanner(scanner), vm(vm) {
 // everything needs to match signature with can_assign
 #define RULE(method) [&](bool can_assign) { method(can_assign); }
-	rules[+TokenType::LEFT_PAREN]    = {RULE(grouping), nullptr, Precedence::NONE};
+	rules[+TokenType::LEFT_PAREN]    = {RULE(grouping), RULE(call), Precedence::CALL};
 	rules[+TokenType::RIGHT_PAREN]   = {nullptr, nullptr, Precedence::NONE};
 	rules[+TokenType::LEFT_BRACE]    = {nullptr, nullptr, Precedence::NONE};
 	rules[+TokenType::RIGHT_BRACE]   = {nullptr, nullptr, Precedence::NONE};
@@ -56,31 +65,43 @@ Compiler::Compiler(Scanner &scanner, VM &vm): scanner(scanner), vm(vm) {
 	rules[+TokenType::ERROR]         = {nullptr, nullptr, Precedence::NONE};
 	rules[+TokenType::END_OF_FILE]   = {nullptr, nullptr, Precedence::NONE};
 #undef RULE
-	current = new LocalState;
+	current = new LocalState(*this, FunctionType::SCRIPT);
+	
+	Local *local = &current->locals[current->local_count++];
+	local->depth = 0;
+	local->name.lexeme = "";
+}
+
+Compiler::~Compiler() {
+	if (current != nullptr) delete current;
 }
 
 Chunk *Compiler::current_chunk() {
-	return compiling_chunk;
+	return &(current->function->chunk);
 }
 
-bool Compiler::compile(std::string_view src, Chunk &chunk) {
+ObjectFunction *Compiler::compile(std::string_view src) {
 	Scanner scanner(src);
-	compiling_chunk = &chunk;
+
 	advance();
 	
 	while (!match(TokenType::END_OF_FILE)) {
 		declaration();
 	}
-	return !parser.had_error;
+	ObjectFunction *fn = end_compiler();
+	return parser.had_error ? nullptr : fn;
 }
 
-void Compiler::end_compiler() {
+ObjectFunction *Compiler::end_compiler() {
 	emit_return();
+	ObjectFunction *fn = current->function;
 #ifdef DEBUG_PRINT_CODE
 	if (!parser.had_error) {
-		disassemble_chunk(*current_chunk(), "code");
+		disassemble_chunk(*current_chunk(), fn->name != nullptr ? fn->name->chars.get() : "code");
 	}
 #endif
+	current = current->enclosing;
+	return fn;
 }
 
 void Compiler::advance() {
@@ -152,6 +173,7 @@ void Compiler::patch_jump(int offset) {
 }
 
 void Compiler::emit_return() {
+	emit_byte(+OP::NIL);
 	emit_byte(+OP::RETURN);
 }
 
@@ -187,6 +209,9 @@ void Compiler::declaration() {
 	if (match(TokenType::VAR)) {
 		var_declaration();
 	}
+	else if (match(TokenType::FUN)) {
+		fun_declaration();
+	}
 	else {
 		statement();
 	}
@@ -212,13 +237,16 @@ void Compiler::statement() {
 		block();
 		end_scope();
 	}
+	else if (match(TokenType::RETURN)) {
+		return_statement();
+	}
 	else {
 		expression_statement();
 	}
 }
 
 void Compiler::var_declaration() {
-	u8 global = parse_variable("Expect Variable name.");
+	u8 global = parse_variable("Expect variable name.");
 	if (match(TokenType::EQUAL)) {
 		expression();
 	}
@@ -226,6 +254,13 @@ void Compiler::var_declaration() {
 		emit_byte(+OP::NIL);
 	}
 	consume(TokenType::SEMICOLON, "Expect ';' after variable declaration");
+	define_variable(global);
+}
+
+void Compiler::fun_declaration() {
+	u8 global = parse_variable("Expect function name.");
+	mark_initialized();
+	function(FunctionType::FUNCTION);
 	define_variable(global);
 }
 
@@ -326,6 +361,42 @@ void Compiler::for_statement() {
 	end_scope();
 }
 
+void Compiler::function(FunctionType type) {
+	LocalState ls(*this, type);
+	begin_scope();
+	consume(TokenType::LEFT_PAREN, "Expect '(' after function name.");
+	if (!check(TokenType::RIGHT_PAREN)) {
+		do {
+			current->function->arity++;
+			if (current->function->arity > 255) {
+				error_at_current("Can't have more than 255 parameters.");
+			}
+			u8 constant = parse_variable("Expect parameter name.");
+			define_variable(constant);
+		} while (match(TokenType::COMMA));
+	}
+	consume(TokenType::RIGHT_PAREN, "Expect '(' after parameters.");
+	consume(TokenType::LEFT_BRACE, "Expect '{' before function body.");
+	block();
+	
+	ObjectFunction *fn = end_compiler();
+	emit_bytes(+OP::CONSTANT, make_constant(vm.make_ObjectFunction(fn)));
+}
+
+void Compiler::return_statement() {
+	if (current->type == FunctionType::SCRIPT) {
+		error("Can't return from top-level code.");
+	}
+	if (match(TokenType::SEMICOLON)) {
+		emit_return();
+	}
+	else {
+		expression();
+		consume(TokenType::SEMICOLON, "Expect ';' after return value.");
+		emit_byte(+OP::RETURN);
+	}
+}
+
 void Compiler::number(bool) {
 	double value = strtod(parser.previous.lexeme.begin(), nullptr);
 	emit_constant(LoxValue(value));
@@ -418,6 +489,26 @@ void Compiler::or_(bool) {
 	patch_jump(end_jump);
 }
 
+void Compiler::call(bool) {
+	u8 arg_count = argument_list();
+	emit_bytes(+OP::CALL, arg_count);
+}
+
+u8 Compiler::argument_list() {
+	u8 arg_count = 0;
+	if (!check(TokenType::RIGHT_PAREN)) {
+		do {
+			expression();
+			if (arg_count == 255) {
+				error("Can't have more than 255 arguments.");
+			}
+			arg_count++;
+		} while(match(TokenType::COMMA));
+	}
+	consume(TokenType::RIGHT_PAREN, "Expect ')' after arguments.");
+	return arg_count;
+}
+
 void Compiler::parse_precedence(Precedence precedence) {
 	advance();
 	auto prefix_rule = get_rule(parser.previous.type)->prefix;
@@ -494,6 +585,7 @@ void Compiler::define_variable(u8 global) {
 }
 
 void Compiler::mark_initialized() {
+	if (current->scope_depth == 0) return;
 	current->locals[current->local_count-1].depth = current->scope_depth;
 }
 

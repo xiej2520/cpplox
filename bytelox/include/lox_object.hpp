@@ -7,13 +7,16 @@ namespace bytelox {
 
 enum class ObjectType {
 	STRING,
+	UPVALUE,
 	FUNCTION,
 	NATIVE,
+	CLOSURE,
 };
 
 struct ObjectString;
 struct ObjectFunction;
 struct ObjectNative;
+struct ObjectClosure;
 
 // inheritance would probably work instead
 struct LoxObject {
@@ -32,14 +35,20 @@ struct LoxObject {
 	ObjectNative &as_native() {
 		return (ObjectNative &) *this;
 	}
-	bool is_string() {
+	ObjectClosure &as_closure() {
+		return (ObjectClosure &) *this;
+	}
+	constexpr bool is_string() {
 		return type == ObjectType::STRING;
 	}
-	bool is_function() {
+	constexpr bool is_function() {
 		return type == ObjectType::FUNCTION;
 	}
-	bool is_native() {
+	constexpr bool is_native() {
 		return type == ObjectType::NATIVE;
+	}
+	constexpr bool is_closure() {
+		return type == ObjectType::CLOSURE;
 	}
 	
 	void print_object();
@@ -65,15 +74,22 @@ struct ObjectString {
 	}
 };
 
+struct ObjectUpvalue {
+	LoxObject obj;
+	LoxValue *location;
+	LoxValue closed = LoxValue();
+	ObjectUpvalue *next = nullptr;
+	constexpr ObjectUpvalue(LoxValue *slot): location(slot) {}
+};
+
 struct ObjectFunction {
 	LoxObject obj;
-	int arity;
+	int arity = 0;
 	Chunk chunk;
-	ObjectString *name;
+	ObjectString *name = nullptr;
+	int upvalue_count = 0;
 	constexpr ObjectFunction() {
 		obj.type = ObjectType::FUNCTION;
-		arity = 0;
-		name = nullptr;
 	}
 };
 
@@ -84,6 +100,18 @@ struct ObjectNative {
 	NativeFn function;
 	constexpr ObjectNative(NativeFn fn): function(fn) {
 		obj.type = ObjectType::NATIVE;
+	}
+};
+
+struct ObjectClosure {
+	LoxObject obj;
+	ObjectFunction *function;
+	ObjectUpvalue **upvalues;
+	int upvalue_count;
+	ObjectClosure(ObjectFunction *fn): function(fn),
+			upvalues(new ObjectUpvalue *[fn->upvalue_count]()),
+			upvalue_count(fn->upvalue_count) {
+		obj.type = ObjectType::CLOSURE;
 	}
 };
 

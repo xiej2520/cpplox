@@ -33,7 +33,11 @@ InterpretResult VM::interpret(std::string_view src) {
 	if (fn == nullptr) return INTERPRET_COMPILE_ERROR;
 	
 	stack.push_back(make_ObjectFunction(fn));
-	frames.emplace_back(fn, fn->chunk.code.data(), 0);
+	ObjectClosure *closure = new ObjectClosure(fn);
+	stack.pop_back();
+	stack.push_back(make_ObjectClosure(closure));
+	call(*closure, 0);
+	//frames.emplace_back(fn, fn->chunk.code.data(), 0);
 
 	return run();
 }
@@ -88,10 +92,23 @@ LoxValue VM::make_ObjectNative(NativeFn function) {
 	return res;
 }
 
+LoxValue VM::make_ObjectClosure(ObjectClosure *closure) {
+	LoxValue res;
+	res.type = ValueType::OBJECT;
+	res.as.obj = (LoxObject *) closure;
+	res.as.obj->next = objects;
+	objects = res.as.obj;
+	return res;
+}
+
 void VM::free_LoxObject(LoxObject *object) {
 	switch (object->type) {
 		case ObjectType::STRING: {
 			delete object; // unique_ptr frees chars
+			break;
+		}
+		case ObjectType::UPVALUE: {
+			delete object;
 			break;
 		}
 		case ObjectType::FUNCTION: {
@@ -102,6 +119,11 @@ void VM::free_LoxObject(LoxObject *object) {
 			delete object;
 			break;
 		} 
+		case ObjectType::CLOSURE: {
+			ObjectClosure *closure = (ObjectClosure *)(object);
+			delete[] closure->upvalues;
+			delete object;
+		}
 	}
 }
 
@@ -139,19 +161,21 @@ LoxValue &VM::peek() {
 	return stack.back();
 }
 
-bool VM::call(ObjectFunction *fn, int arg_count) {
-	if (arg_count != fn->arity) {
-		runtime_error("Expected {} arguments but got {}.", fn->arity, arg_count);
+bool VM::call(ObjectClosure &closure, int arg_count) {
+	if (arg_count != closure.function->arity) {
+		runtime_error("Expected {} arguments but got {}.", closure.function->arity, arg_count);
 		return false;
 	}
-	frames.emplace_back(fn, fn->chunk.code.data(), stack.size() - arg_count);
+	frames.emplace_back(&closure, closure.function->chunk.code.data(), stack.size() - arg_count - 1);
 	return true;
 }
 
 bool VM::call_value(LoxValue callee, int arg_count) {
 	if (callee.is_object()) {
 		switch(callee.as.obj->type) {
-			case ObjectType::FUNCTION: return call(&callee.as.obj->as_function(), arg_count);
+			// cannot call ObjectFunction
+			//case ObjectType::FUNCTION: return call(callee.as.obj->as_function(), arg_count);
+			case ObjectType::CLOSURE: return call(callee.as.obj->as_closure(), arg_count);
 			case ObjectType::NATIVE: {
 				NativeFn native = callee.as.obj->as_native().function;
 				LoxValue result = native(arg_count, &stack.back() - arg_count + 1);
@@ -166,14 +190,44 @@ bool VM::call_value(LoxValue callee, int arg_count) {
 	return false;
 }
 
+ObjectUpvalue *VM::capture_upvalue(LoxValue *local) {
+	ObjectUpvalue *prev_upvalue = nullptr;
+	ObjectUpvalue *upvalue = open_upvalues;
+	while (upvalue != nullptr && upvalue->location > local) {
+		prev_upvalue = upvalue;
+		upvalue = upvalue->next;
+	}
+	if (upvalue != nullptr && upvalue->location == local) {
+		return upvalue;
+	}
+	ObjectUpvalue *created_upvalue = new ObjectUpvalue(local);
+	created_upvalue->next = upvalue;
+	if (prev_upvalue == nullptr) {
+		open_upvalues = created_upvalue;
+	}
+	else {
+		prev_upvalue->next = created_upvalue;
+	}
+	return created_upvalue;
+}
+
+void VM::close_upvalues(LoxValue *last) {
+	while (open_upvalues != nullptr && open_upvalues->location >= last) {
+		ObjectUpvalue *upvalue = open_upvalues;
+		upvalue->closed = *upvalue->location;
+		upvalue->location = &upvalue->closed;
+		open_upvalues = upvalue->next;
+	}
+}
+
 LoxValue VM::read_constant(CallFrame *frame) {
-	return frame->function->chunk.constants[*frame->ip++];
+	return frame->closure->function->chunk.constants[*frame->ip++];
 }
 
 InterpretResult VM::run() {
 	for (;;) {
 		CallFrame *frame = &frames.back();
-#undef DEBUG_TRACE_EXECUTION
+//#undef DEBUG_TRACE_EXECUTION
 #ifdef DEBUG_TRACE_EXECUTION
 		fmt::print("          ");
 		for (LoxValue value : stack) {
@@ -182,7 +236,7 @@ InterpretResult VM::run() {
 			fmt::print((" ]"));
 		}
 		fmt::print("\n");
-		disassemble_instruction(frame->function->chunk, frame->ip - frame->function->chunk.code.data());
+		disassemble_instruction(frame->closure->function->chunk, frame->ip - frame->closure->function->chunk.code.data());
 #endif
 #define READ_BYTE() (*frame->ip++)
 		u8 instruction;
@@ -202,13 +256,13 @@ InterpretResult VM::run() {
 		case +OP::FALSE: stack.emplace_back(LoxValue(false)); break;
 		case +OP::POP: stack.pop_back(); break;
 		case +OP::GET_LOCAL: {
-			u8 slot = *frame->ip++ + frame->slots;
-			stack.push_back(stack[slot]); // loads local to top of stack
+			u8 slot = *frame->ip++;
+			stack.push_back(stack[slot + frame->slots]); // loads local to top of stack
 			break;
 		}
 		case +OP::SET_LOCAL: {
-			u8 slot = *frame->ip++ + frame->slots;
-			stack[slot] = peek();
+			u8 slot = *frame->ip++;
+			stack[slot + frame->slots] = peek();
 			break;
 		}
 		case +OP::GET_GLOBAL: {
@@ -235,6 +289,16 @@ InterpretResult VM::run() {
 				runtime_error("Undefined variable '{}'", name->chars.get());
 				return INTERPRET_RUNTIME_ERROR;
 			}
+			break;
+		}
+		case +OP::GET_UPVALUE: {
+			u8 slot = *frame->ip++;
+			stack.push_back(*frame->closure->upvalues[slot]->location);
+			break;
+		}
+		case +OP::SET_UPVALUE: {
+			u8 slot = *frame->ip++;
+			*frame->closure->upvalues[slot]->location = peek();
 			break;
 		}
 		case +OP::EQUAL: {
@@ -368,16 +432,38 @@ InterpretResult VM::run() {
 			frame = &frames.back();
 			break;
 		}
+		case +OP::CLOSURE: {
+			ObjectFunction *fn = &read_constant(frame).as.obj->as_function();
+			ObjectClosure *closure = new ObjectClosure(fn);
+			stack.push_back(make_ObjectClosure(closure));
+			for (int i=0; i<closure->upvalue_count; i++) {
+				u8 is_local = *frame->ip++;
+				u8 index = *frame->ip++;
+				if (is_local) {
+					closure->upvalues[i] = capture_upvalue(&stack[frame->slots + index]);
+				}
+				else {
+					closure->upvalues[i] = frame->closure->upvalues[index];
+				}
+			}
+			break;
+		}
+		case +OP::CLOSE_UPVALUE: {
+			close_upvalues(&stack.back());
+			stack.pop_back();
+			break;
+		}
 		case +OP::RETURN: {
 			LoxValue result = stack.back();
 			stack.pop_back(); // get rid of returned value
+			close_upvalues(&stack[frame->slots]);
 			if (frames.size() == 1) { // last frame popped
 				frames.pop_back();
 				stack.pop_back();
 				return INTERPRET_OK;
 			}
 			
-			stack.resize(frame->slots - 1); // resize stack down
+			stack.resize(frame->slots); // resize stack down (INDEX of frame is SIZE without frame)
 			stack.push_back(result); // put result at top of stack
 			frames.pop_back(); // drop frame
 			frame = &frames.back();
@@ -393,7 +479,7 @@ void VM::runtime_error(fmt::format_string<Args...> format, Args&&... args) {
 	fmt::print(stderr, "\n");
 	for (int i=frames.size()-1; i>=0; i--) {
 		CallFrame &frame = frames[i];
-		ObjectFunction *fn = frame.function;
+		ObjectFunction *fn = frame.closure->function;
 		size_t instruction = frame.ip - fn->chunk.code.data() - 1;
 		fmt::print(stderr, "[line {}] in ", fn->chunk.get_line(instruction));
 		if (fn->name == nullptr) fmt::print(stderr, "script\n");
@@ -401,14 +487,15 @@ void VM::runtime_error(fmt::format_string<Args...> format, Args&&... args) {
 	}
 
 	CallFrame &frame = frames.back();
-	size_t instruction = frame.ip - frame.function->chunk.code.data() - 1; // ip advances before executing
-	u16 line = frame.function->chunk.get_line(instruction);
+	size_t instruction = frame.ip - frame.closure->function->chunk.code.data() - 1; // ip advances before executing
+	u16 line = frame.closure->function->chunk.get_line(instruction);
 	fmt::print(stderr, "[line {}] in script\n", line);
 	reset_stack();
 }
 
 void VM::reset_stack() {
 	stack.clear();
+	open_upvalues = nullptr;
 }
 
 } // namespace bytelox

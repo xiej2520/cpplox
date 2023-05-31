@@ -17,6 +17,10 @@ Compiler::LocalState::LocalState(Compiler &compiler, FunctionType type): enclosi
 	if (type != FunctionType::SCRIPT) {
 		function->name = &(compiler.vm.make_ObjectString(compiler.parser.previous.lexeme).as.obj->as_string());
 	}
+	// scope starts with its function in first slot
+	local_count = 1;
+	locals[0].depth = 0;
+	locals[0].is_captured = false;
 }
 
 using ParseFn = void (*)();
@@ -67,9 +71,6 @@ Compiler::Compiler(Scanner &scanner, VM &vm): scanner(scanner), vm(vm) {
 #undef RULE
 	current = new LocalState(*this, FunctionType::SCRIPT);
 	
-	Local *local = &current->locals[current->local_count++];
-	local->depth = 0;
-	local->name.lexeme = "";
 }
 
 Compiler::~Compiler() {
@@ -195,8 +196,13 @@ void Compiler::end_scope() {
 	current->scope_depth--;
 	while (current->local_count > 0 &&
 			current->locals[current->local_count-1].depth > current->scope_depth){
-		// could be optimized to POPN
-		emit_byte(+OP::POP);
+		if (current->locals[current->local_count - 1].is_captured) {
+			emit_byte(+OP::CLOSE_UPVALUE);
+		}
+		else {
+			// could be optimized to POPN
+			emit_byte(+OP::POP);
+		}
 		current->local_count--;
 	}
 }
@@ -380,7 +386,11 @@ void Compiler::function(FunctionType type) {
 	block();
 	
 	ObjectFunction *fn = end_compiler();
-	emit_bytes(+OP::CONSTANT, make_constant(vm.make_ObjectFunction(fn)));
+	emit_bytes(+OP::CLOSURE, make_constant(vm.make_ObjectFunction(fn)));
+	//emit_bytes(+OP::CONSTANT, make_constant(vm.make_ObjectFunction(fn)));
+	for (int i=0; i<fn->upvalue_count; i++) {
+		emit_bytes(ls.upvalues[i].is_local ? 1 : 0, ls.upvalues[i].index);
+	}
 }
 
 void Compiler::return_statement() {
@@ -456,6 +466,10 @@ void Compiler::named_variable(Token name, bool can_assign) {
 	if (arg != -1) {
 		get_op = +OP::GET_LOCAL;
 		set_op = +OP::SET_LOCAL;
+	}
+	else if ((arg = resolve_upvalue(*current, name)) != -1) {
+		get_op = +OP::GET_UPVALUE;
+		set_op = +OP::SET_UPVALUE;
 	}
 	else {
 		arg = identifier_constant(name);
@@ -550,6 +564,35 @@ int Compiler::resolve_local(LocalState &ls, Token &name) {
 	return -1;
 }
 
+int Compiler::add_upvalue(LocalState &ls, u8 index, bool is_local) {
+	int upvalue_count = ls.function->upvalue_count;
+	for (int i=0; i<upvalue_count; i++) {
+		Upvalue &upvalue = ls.upvalues[i];
+		if (upvalue.index == index && upvalue.is_local == is_local) return i;
+	}
+	if (upvalue_count == UINT8_MAX + 1) {
+		error("Too many closure variables in function.");
+		return 0;
+	}
+	ls.upvalues[upvalue_count].is_local = is_local;
+	ls.upvalues[upvalue_count].index = index;
+	return ls.function->upvalue_count++;
+}
+
+int Compiler::resolve_upvalue(LocalState &ls, Token &name) {
+	if (ls.enclosing == nullptr) return -1;
+	int local = resolve_local(*ls.enclosing, name);
+	if (local != -1) {
+		ls.enclosing->locals[local].is_captured = true;
+		return add_upvalue(ls, static_cast<u8>(local), true);
+	}
+
+	int upvalue = resolve_upvalue(*ls.enclosing, name);
+	if (upvalue != -1) return add_upvalue(ls, static_cast<u8>(upvalue), false);
+
+	return -1;
+}
+
 u8 Compiler::parse_variable(std::string_view msg) {
 	consume(TokenType::IDENTIFIER, msg);
 	
@@ -593,6 +636,7 @@ void Compiler::add_local(Token name) {
 	Local *local = &current->locals[current->local_count++];
 	local->name = name;
 	local->depth = -1; // uninitialized
+	local->is_captured = false;
 }
 
 ParseRule *Compiler::get_rule(TokenType type) {

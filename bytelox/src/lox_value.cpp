@@ -9,6 +9,7 @@ namespace bytelox {
 void LoxObject::print_object() {
 	switch (type) {
 		case ObjectType::STRING: fmt::print("{}", as_string().chars.get()); return;
+		case ObjectType::UPVALUE: fmt::print("upvalue"); return;
 		case ObjectType::FUNCTION: {
 			if (as_function().name == nullptr) fmt::print("<script>");
 			else fmt::print("<fn {}>", as_function().name->chars.get());
@@ -16,6 +17,11 @@ void LoxObject::print_object() {
 		}
 		case ObjectType::NATIVE: {
 			fmt::print("<native fn>"); return;
+		}
+		case ObjectType::CLOSURE: {
+			if (as_closure().function->name == nullptr) fmt::print("<script>");
+			else fmt::print("<fn {}>", as_closure().function->name->chars.get());
+			return;
 		}
 	}
 

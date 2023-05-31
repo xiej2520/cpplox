@@ -19,7 +19,7 @@ size_t Chunk::count() {
 u16 Chunk::get_line(int index) {
 	for (RLE rle : lines) {
 		index -= rle.count;
-		if (index <= 0) {
+		if (index < 0) {
 			return rle.line;
 		}
 	}

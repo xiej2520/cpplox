@@ -26,6 +26,8 @@ enum class OP {
 	GET_GLOBAL,    // 1 byte
 	DEFINE_GLOBAL, // 1 byte
 	SET_GLOBAL,    // 1 byte
+	GET_UPVALUE,   // 
+	SET_UPVALUE,   // 
 	EQUAL,         // 1 byte
 	NOT_EQUAL,     // 1 byte
 	GREATER,       // 1 byte
@@ -42,7 +44,9 @@ enum class OP {
 	JUMP,          // 3 bytes, 2 byte little endian offset
 	JUMP_IF_FALSE, // 3 bytes, 2 byte little endian offset
 	LOOP,          // 3 bytes, 2 byte little endian offset
-	CALL,          // 
+	CALL,          // 1 byte
+	CLOSURE,       // Variable encoding: each upvalue encodes [is_local, index]
+	CLOSE_UPVALUE, // 1 byte
 	RETURN         // 1 byte
 };
 

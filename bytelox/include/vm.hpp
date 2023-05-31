@@ -19,16 +19,18 @@ enum class InterpretResult {
 
 struct VM {
 	struct CallFrame {
-		ObjectFunction *function;
+		ObjectClosure *closure;
 		u8 *ip;
-		size_t slots; // start of frame slots in stack
-		CallFrame(ObjectFunction* fn, u8 *ip, size_t slots): function(fn), ip(ip), slots(slots) {}
+		size_t slots; // index of frame (fn obj) in stack
+		CallFrame(ObjectClosure* closure, u8 *ip, size_t slots):
+				closure(closure), ip(ip), slots(slots) {}
 	};
 
 	Chunk *chunk;
 	u8 *ip = nullptr; // next instruction to be executed
 	std::vector<LoxValue> stack;
-	LoxObject *objects;
+	LoxObject *objects = nullptr;
+	ObjectUpvalue *open_upvalues = nullptr;
 	HashTable globals;
 	HashTable strings;
 	
@@ -43,8 +45,10 @@ struct VM {
 	LoxValue &peek(size_t i);
 	// top of stack, no bounds check
 	LoxValue &peek();
-	bool call(ObjectFunction *fn, int arg_count);
+	bool call(ObjectClosure &closure, int arg_count);
 	bool call_value(LoxValue callee, int arg_count);
+	ObjectUpvalue *capture_upvalue(LoxValue *local);
+	void close_upvalues(LoxValue *last);
 	LoxValue read_constant(CallFrame *frame);
 	void concatenate();
 	
@@ -52,6 +56,7 @@ struct VM {
 	LoxValue make_ObjectString(std::string_view str);
 	LoxValue make_ObjectFunction(ObjectFunction *fn);
 	LoxValue make_ObjectNative(NativeFn function);
+	LoxValue make_ObjectClosure(ObjectClosure *closure);
 	void free_LoxObject(LoxObject *object);
 	void define_native(std::string_view name, NativeFn fn);
 	

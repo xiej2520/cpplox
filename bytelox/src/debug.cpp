@@ -1,6 +1,7 @@
 #include "debug.hpp"
 
 #include "lox_value.hpp"
+#include "lox_object.hpp"
 
 #define FMT_HEADER_ONLY
 #include "fmt/core.h"
@@ -51,7 +52,7 @@ int disassemble_instruction(Chunk &chunk, size_t offset) {
 		fmt::print("   | ");
 	}
 	else {
-		fmt::print("{:0>4} ", chunk.get_line(offset));
+		fmt::print("{:>4} ", chunk.get_line(offset));
 	}
 	
 	u8 instruction = chunk.code[offset];
@@ -78,6 +79,10 @@ int disassemble_instruction(Chunk &chunk, size_t offset) {
 			return constant_instruction("OP_DEFINE_GLOBAL", chunk, offset);
 		case +OP::SET_GLOBAL:
 			return constant_instruction("OP_SET_GLOBAL", chunk, offset);
+		case +OP::GET_UPVALUE:
+			return byte_instruction("OP_GET_UPVALUE", chunk, offset);
+		case +OP::SET_UPVALUE:
+			return byte_instruction("OP_SET_UPVALUE", chunk, offset);
 		case +OP::EQUAL:
 			return simple_instruction("OP_EQUAL", offset);
 		case +OP::NOT_EQUAL:
@@ -112,6 +117,23 @@ int disassemble_instruction(Chunk &chunk, size_t offset) {
 			return jump_instruction("OP_LOOP", -1, chunk, offset);
 		case +OP::CALL:
 			return byte_instruction("OP_CALL", chunk, offset);
+		case +OP::CLOSURE: {
+			offset++;
+			u8 constant = chunk.code.data()[offset++];
+			fmt::print("{:<16} {:4} ", "OP_CLOSURE", constant);
+			chunk.constants[constant].print_value();
+			fmt::print("\n");
+			ObjectFunction &fn = chunk.constants[constant].as.obj->as_function();
+			for (int j=0; j<fn.upvalue_count; j++) {
+				int is_local = chunk.code[offset++];
+				int index = chunk.code[offset++];
+				fmt::print("{:0>4}    |                     {} {}\n",
+						offset - 2, is_local ? "local" : "upvalue", index);
+			}
+			return offset;
+		}
+		case +OP::CLOSE_UPVALUE:
+			return simple_instruction("OP_CLOSE_UPVALUE", offset);
 		case +OP::RETURN:
 			return simple_instruction("OP_RETURN", offset);
 		default:

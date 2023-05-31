@@ -37,6 +37,7 @@ struct Compiler {
 	struct Local {
 		Token name;
 		int depth;
+		bool is_captured;
 	};
 	
 	enum class FunctionType {
@@ -44,6 +45,10 @@ struct Compiler {
 		SCRIPT
 	};
 
+	struct Upvalue {
+		u8 index;
+		bool is_local;
+	};
 	// rename to LocalScope?
 	struct LocalState {
 		LocalState *enclosing = nullptr;
@@ -52,6 +57,7 @@ struct Compiler {
 		Local locals[UINT8_MAX + 1];
 		int local_count = 0;
 		int scope_depth = 0;
+		Upvalue upvalues[UINT8_MAX + 1];
 		LocalState(Compiler &compiler, FunctionType type);
 	};
 	
@@ -126,6 +132,8 @@ struct Compiler {
 	u8 identifier_constant(const Token &name);
 	bool identifiers_equal(Token &a, Token &b);
 	int resolve_local(LocalState &ls, Token &name);
+	int add_upvalue(LocalState &ls, u8 index, bool is_local);
+	int resolve_upvalue(LocalState &ls, Token &name);
 	u8 parse_variable(std::string_view msg);
 	void declare_variable();
 	void define_variable(u8 global);

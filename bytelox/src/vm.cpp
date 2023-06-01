@@ -3,7 +3,6 @@
 #include "lox_value.hpp"
 #include "vm.hpp"
 #include "debug.hpp"
-#include "compiler.hpp"
 
 namespace bytelox {
 
@@ -14,7 +13,7 @@ LoxValue clock_native(int, LoxValue *) {
 
 using enum InterpretResult;
 
-VM::VM(): objects(nullptr) {
+VM::VM(): compiler(nullptr), objects(nullptr) {
 	define_native("clock", clock_native);
 }
 
@@ -28,12 +27,16 @@ VM::~VM() {
 
 InterpretResult VM::interpret(std::string_view src) {
 	Scanner scanner(src);
-	Compiler compiler(scanner, *this);
-	ObjectFunction *fn = compiler.compile(src);
+	compiler = new Compiler(scanner, *this);
+	ObjectFunction *fn = compiler->compile(src);
 	if (fn == nullptr) return INTERPRET_COMPILE_ERROR;
 	
 	stack.push_back(make_ObjectFunction(fn));
 	ObjectClosure *closure = new ObjectClosure(fn);
+	bytes_allocated += sizeof(ObjectClosure);
+#ifdef DEBUG_LOG_GC
+	fmt::print("{} allocate {} for {}\n", (void *) closure, sizeof(ObjectClosure), "ObjectClosure");
+#endif
 	stack.pop_back();
 	stack.push_back(make_ObjectClosure(closure));
 	call(*closure, 0);
@@ -47,12 +50,20 @@ LoxValue VM::make_LoxObject(LoxObject *obj) {
 	res.type = ValueType::OBJECT;
 	if (obj == nullptr) {
 		res.as.obj = new LoxObject;
+		bytes_allocated += sizeof(LoxObject);
+		if (bytes_allocated > next_GC) collect_garbage();
 	}
 	else {
 		res.as = { .obj=obj };
 	}
 	res.as.obj->next = objects;
 	objects = res.as.obj;
+#ifdef DEBUG_STRESS_GC
+	collect_garbage();
+#endif
+#ifdef DEBUG_LOG_GC
+	fmt::print("{} allocate {} for {}\n", (void *) res.as.obj, sizeof(LoxObject), "LoxObject");
+#endif
 	return res;	
 }
 
@@ -62,6 +73,8 @@ LoxValue VM::make_ObjectString(std::string_view str) {
 	ObjectString *interned = strings.find_string(str);
 	if (interned == nullptr) {
 		res.as.obj = (LoxObject *) new ObjectString(str);
+		bytes_allocated += sizeof(ObjectString);
+		if (bytes_allocated > next_GC) collect_garbage();
 		strings.set((ObjectString *) res.as.obj, LoxValue());
 		res.as.obj->next = objects;
 		objects = res.as.obj;
@@ -69,6 +82,14 @@ LoxValue VM::make_ObjectString(std::string_view str) {
 	else {
 		res.as.obj = (LoxObject *) interned;
 	}
+#ifdef DEBUG_STRESS_GC
+	stack.push_back(res); // prevent immediate collection
+	collect_garbage();
+	stack.pop_back();
+#endif
+#ifdef DEBUG_LOG_GC
+	fmt::print("{} allocate {} for {}\n", (void *) res.as.obj, sizeof(ObjectString), "ObjectString");
+#endif
 	return res;	
 }
 
@@ -80,6 +101,11 @@ LoxValue VM::make_ObjectFunction(ObjectFunction *fn) {
 	res.as.obj = (LoxObject *) fn;
 	res.as.obj->next = objects;
 	objects = res.as.obj;
+#ifdef DEBUG_STRESS_GC
+	stack.push_back(res); // prevent immediate collection
+	collect_garbage();
+	stack.pop_back();
+#endif
 	return res;
 }
 
@@ -87,8 +113,18 @@ LoxValue VM::make_ObjectNative(NativeFn function) {
 	LoxValue res;
 	res.type = ValueType::OBJECT;
 	res.as.obj = (LoxObject *) new ObjectNative(function);
+	bytes_allocated += sizeof(ObjectNative);
+	if (bytes_allocated > next_GC) collect_garbage();
 	res.as.obj->next = objects;
 	objects = res.as.obj;
+#ifdef DEBUG_STRESS_GC
+	stack.push_back(res); // prevent immediate collection
+	collect_garbage();
+	stack.pop_back();
+#endif
+#ifdef DEBUG_LOG_GC
+	fmt::print("{} allocate {} for {}\n", (void *) res.as.obj, sizeof(ObjectNative), "ObjectNative");
+#endif
 	return res;
 }
 
@@ -98,29 +134,43 @@ LoxValue VM::make_ObjectClosure(ObjectClosure *closure) {
 	res.as.obj = (LoxObject *) closure;
 	res.as.obj->next = objects;
 	objects = res.as.obj;
+#ifdef DEBUG_STRESS_GC
+	stack.push_back(res); // prevent immediate collection
+	collect_garbage();
+	stack.pop_back();
+#endif
 	return res;
 }
 
 void VM::free_LoxObject(LoxObject *object) {
+#ifdef DEBUG_LOG_GC
+	fmt::print("{} free type {}\n", (void *) object, static_cast<int>(object->type));
+#endif
 	switch (object->type) {
 		case ObjectType::STRING: {
+			bytes_allocated -= sizeof(ObjectString);
 			delete object; // unique_ptr frees chars
 			break;
 		}
 		case ObjectType::UPVALUE: {
+			bytes_allocated -= sizeof(ObjectUpvalue);
 			delete object;
 			break;
 		}
 		case ObjectType::FUNCTION: {
+			bytes_allocated -= sizeof(ObjectFunction);
 			delete object;
 			break;
 		}
 		case ObjectType::NATIVE: {
+			bytes_allocated -= sizeof(ObjectNative);
 			delete object;
 			break;
 		} 
 		case ObjectType::CLOSURE: {
 			ObjectClosure *closure = (ObjectClosure *)(object);
+			bytes_allocated -= sizeof(ObjectClosure);
+			bytes_allocated -= sizeof(closure->upvalues);
 			delete[] closure->upvalues;
 			delete object;
 		}
@@ -201,6 +251,11 @@ ObjectUpvalue *VM::capture_upvalue(LoxValue *local) {
 		return upvalue;
 	}
 	ObjectUpvalue *created_upvalue = new ObjectUpvalue(local);
+	bytes_allocated += sizeof(ObjectUpvalue);
+	if (bytes_allocated > next_GC) collect_garbage();
+#ifdef DEBUG_LOG_GC
+	fmt::print("{} allocate {} for {}\n", (void *) created_upvalue, sizeof(ObjectUpvalue), "ObjectUpvalue");
+#endif
 	created_upvalue->next = upvalue;
 	if (prev_upvalue == nullptr) {
 		open_upvalues = created_upvalue;
@@ -433,8 +488,12 @@ InterpretResult VM::run() {
 			break;
 		}
 		case +OP::CLOSURE: {
+			// stays alive?
 			ObjectFunction *fn = &read_constant(frame).as.obj->as_function();
 			ObjectClosure *closure = new ObjectClosure(fn);
+#ifdef DEBUG_LOG_GC
+	fmt::print("{} allocate {} for {}\n", (void *) closure, sizeof(ObjectClosure), "ObjectClosure");
+#endif
 			stack.push_back(make_ObjectClosure(closure));
 			for (int i=0; i<closure->upvalue_count; i++) {
 				u8 is_local = *frame->ip++;
@@ -496,6 +555,148 @@ void VM::runtime_error(fmt::format_string<Args...> format, Args&&... args) {
 void VM::reset_stack() {
 	stack.clear();
 	open_upvalues = nullptr;
+}
+
+
+void VM::mark_roots() {
+	for (LoxValue &val : stack) {
+		mark_value(val);
+	}
+	for (CallFrame &frame : frames) {
+		mark_object((LoxObject *) frame.closure);
+	}
+	for (ObjectUpvalue *upvalue = open_upvalues; upvalue != nullptr; upvalue = upvalue->next) {
+		mark_object((LoxObject *) upvalue);
+	}
+	mark_table(globals);
+	mark_compiler_roots();
+}
+
+void VM::mark_compiler_roots() {
+	Compiler::LocalState *ls = compiler->current;
+	while (ls != nullptr) {
+		mark_object((LoxObject *) ls->function);
+		ls = ls->enclosing;
+	}
+}
+
+void VM::mark_value(LoxValue &val) {
+	if (val.is_object()) mark_object(val.as.obj);
+}
+
+void VM::mark_object(LoxObject *obj) {
+	if (obj == nullptr) return;
+	if (obj->is_marked) return;
+	obj->is_marked = true;
+	gray_stack.push_back(obj);
+#ifdef DEBUG_LOG_GC
+	fmt::print("{} mark ", (void *) obj);
+	obj->print_object();
+	fmt::print("\n");
+#endif
+}
+
+void VM::mark_vec(std::vector<LoxValue> &vec) {
+	for (LoxValue &val : vec) {
+		mark_value(val);
+	}
+}
+void VM::mark_table(HashTable &table) {
+	for (u32 i=0; i<table.capacity; i++) {
+		Entry *entry = &table.entries[i];
+		mark_object((LoxObject *) entry->key);
+		if (entry->value.is_object()) {
+			mark_object((LoxObject *) entry->value.as.obj);
+		}
+	}
+}
+void VM::remove_white(HashTable &table) {
+	for (u32 i=0; i<table.capacity; i++) {
+		Entry *entry = &table.entries[i];
+		if (entry->key != nullptr && !entry->key->obj.is_marked) {
+			table.del(entry->key);
+		}
+	}
+}
+
+void VM::blacken_object(LoxObject &obj) {
+#ifdef DEBUG_LOG_GC
+	fmt::print("{} blacken ", (void *) &obj);
+	obj.print_object();
+	fmt::print("\n");
+#endif
+	switch (obj.type) {
+		case ObjectType::UPVALUE:
+			mark_value(obj.as_upvalue().closed);
+			break;
+		case ObjectType::FUNCTION: {
+			ObjectFunction *fn = (ObjectFunction *) &obj;
+			mark_object(((LoxObject *) fn->name));
+			mark_vec(fn->chunk.constants);
+			break;
+		}
+		case ObjectType::CLOSURE: {
+			ObjectClosure *closure = (ObjectClosure *) &obj;
+			mark_object((LoxObject *) closure->function);
+			for (int i=0; i<closure->upvalue_count; i++) {
+				mark_object((LoxObject *) closure->upvalues[i]);
+			}
+			break;
+		}
+		case ObjectType::NATIVE:
+		case ObjectType::STRING:
+			break;
+	}	
+}
+
+void VM::collect_garbage() {
+#ifdef DEBUG_LOG_GC
+	fmt::print("-- gc begin\n");
+	size_t before = bytes_allocated;
+#endif
+	
+	mark_roots();
+	trace_references();
+	sweep();
+	
+	constexpr int GC_HEAP_GROW_FACTOR = 2;
+	next_GC = bytes_allocated * GC_HEAP_GROW_FACTOR;
+
+#ifdef DEBUG_LOG_GC
+	fmt::print("-- gc end\n");
+	fmt::print("   collected {} bytes (from {} to {}) next at {}\n",
+			before - bytes_allocated, before, bytes_allocated, next_GC);
+#endif
+}
+
+void VM::trace_references() {
+	while (!gray_stack.empty()) {
+		blacken_object(*gray_stack.back());
+		gray_stack.pop_back();
+	}
+}
+
+void VM::sweep() {
+	LoxObject *previous = nullptr;
+	LoxObject *current = objects;
+	while (current != nullptr) {
+		if (current->is_marked) {
+			current->is_marked = false;
+			previous = current;
+			current = current->next;
+		}
+		else {
+			LoxObject *unreached = current;
+			current = current->next;
+			if (previous != nullptr) {
+				previous->next = current;
+			}
+			else {
+				objects = current;
+			}
+			free_LoxObject(unreached);
+		}
+	}
 }
 
 } // namespace bytelox

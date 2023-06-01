@@ -146,7 +146,6 @@ struct Compiler {
 	void error_at(Token &token, std::string_view msg);
 	
 	void synchronize();
-
 };
 
 }

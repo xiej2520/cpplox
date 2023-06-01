@@ -3,6 +3,11 @@
 #include "chunk.hpp"
 #include "lox_value.hpp"
 
+#ifdef DEBUG_LOG_GC
+#define FMT_HEADER_ONLY
+#include "fmt/core.h"
+#endif
+
 namespace bytelox {
 
 enum class ObjectType {
@@ -14,6 +19,7 @@ enum class ObjectType {
 };
 
 struct ObjectString;
+struct ObjectUpvalue;
 struct ObjectFunction;
 struct ObjectNative;
 struct ObjectClosure;
@@ -21,6 +27,7 @@ struct ObjectClosure;
 // inheritance would probably work instead
 struct LoxObject {
 	ObjectType type;
+	bool is_marked = false;
 	LoxObject *next;
 
 	[[nodiscard]] constexpr bool is_type(ObjectType type) const {
@@ -28,6 +35,9 @@ struct LoxObject {
 	}
 	ObjectString &as_string() {
 		return (ObjectString &) *this;
+	}
+	ObjectUpvalue &as_upvalue() {
+		return (ObjectUpvalue &) *this;
 	}
 	ObjectFunction &as_function() {
 		return (ObjectFunction &) *this;
@@ -111,6 +121,9 @@ struct ObjectClosure {
 	ObjectClosure(ObjectFunction *fn): function(fn),
 			upvalues(new ObjectUpvalue *[fn->upvalue_count]()),
 			upvalue_count(fn->upvalue_count) {
+#ifdef DEBUG_LOG_GC
+	fmt::print("{} allocate {} for {}\n", (void *) upvalues, sizeof(ObjectUpvalue), "ObjectUpvalue");
+#endif
 		obj.type = ObjectType::CLOSURE;
 	}
 };

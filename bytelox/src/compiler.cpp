@@ -14,6 +14,9 @@ namespace bytelox {
 Compiler::LocalState::LocalState(Compiler &compiler, FunctionType type): enclosing(compiler.current), type(type) {
 	compiler.current = this;
 	function = new ObjectFunction;
+#ifdef DEBUG_LOG_GC
+	fmt::print("{} allocate {} for {}\n", (void *) function, sizeof(ObjectFunction), "ObjectFunction");
+#endif
 	if (type != FunctionType::SCRIPT) {
 		function->name = &(compiler.vm.make_ObjectString(compiler.parser.previous.lexeme).as.obj->as_string());
 	}
@@ -70,12 +73,13 @@ Compiler::Compiler(Scanner &scanner, VM &vm): scanner(scanner), vm(vm) {
 	rules[+TokenType::END_OF_FILE]   = {nullptr, nullptr, Precedence::NONE};
 #undef RULE
 	current = new LocalState(*this, FunctionType::SCRIPT);
+#ifdef DEBUG_LOG_GC
+	fmt::print("{} allocate {} for {}\n", (void *) current, sizeof(LocalState), "LocalState");
+#endif
 	
 }
 
-Compiler::~Compiler() {
-	if (current != nullptr) delete current;
-}
+Compiler::~Compiler() { }
 
 Chunk *Compiler::current_chunk() {
 	return &(current->function->chunk);
@@ -387,7 +391,7 @@ void Compiler::function(FunctionType type) {
 	
 	ObjectFunction *fn = end_compiler();
 	emit_bytes(+OP::CLOSURE, make_constant(vm.make_ObjectFunction(fn)));
-	//emit_bytes(+OP::CONSTANT, make_constant(vm.make_ObjectFunction(fn)));
+	//emit_bytes(+OP::CONSTANT, make_constant(vm->make_ObjectFunction(fn)));
 	for (int i=0; i<fn->upvalue_count; i++) {
 		emit_bytes(ls.upvalues[i].is_local ? 1 : 0, ls.upvalues[i].index);
 	}

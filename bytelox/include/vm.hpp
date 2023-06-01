@@ -2,6 +2,7 @@
 
 #include "chunk.hpp"
 #include "hash_table.hpp"
+#include "compiler.hpp"
 
 #include <string>
 #include <vector>
@@ -26,15 +27,22 @@ struct VM {
 				closure(closure), ip(ip), slots(slots) {}
 	};
 
+	Compiler *compiler;
 	Chunk *chunk;
 	u8 *ip = nullptr; // next instruction to be executed
 	std::vector<LoxValue> stack;
+
 	LoxObject *objects = nullptr;
+	size_t bytes_allocated = 0;
+	size_t next_GC = 1024 * 1024;
+	
+	
 	ObjectUpvalue *open_upvalues = nullptr;
 	HashTable globals;
 	HashTable strings;
 	
 	std::vector<CallFrame> frames;
+	std::vector<LoxObject *> gray_stack;
 
 	VM();
 	~VM();
@@ -66,6 +74,18 @@ struct VM {
 	template<typename... Args>
 	void runtime_error(fmt::format_string<Args...> format, Args&&... args);
 	void reset_stack();
+	
+	void mark_roots();
+	void mark_compiler_roots();
+	void mark_value(LoxValue &val);
+	void mark_object(LoxObject *obj);
+	void mark_vec(std::vector<LoxValue> &vec);
+	void mark_table(HashTable &table);
+	void remove_white(HashTable &table);
+	void blacken_object(LoxObject &obj);
+	void collect_garbage();
+	void trace_references();
+	void sweep();
 
 };
 

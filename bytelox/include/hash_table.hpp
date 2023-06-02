@@ -2,11 +2,12 @@
 
 #include "common.hpp"
 #include "lox_value.hpp"
-#include "lox_object.hpp"
 
 #include <memory>
 
 namespace bytelox {
+
+struct ObjectString;
 
 struct Entry {
 	ObjectString *key;

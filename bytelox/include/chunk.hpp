@@ -28,6 +28,8 @@ enum class OP {
 	SET_GLOBAL,    // 1 byte
 	GET_UPVALUE,   // 
 	SET_UPVALUE,   // 
+	GET_PROPERTY,  //
+	SET_PROPERTY,  //
 	EQUAL,         // 1 byte
 	NOT_EQUAL,     // 1 byte
 	GREATER,       // 1 byte
@@ -47,7 +49,8 @@ enum class OP {
 	CALL,          // 1 byte
 	CLOSURE,       // Variable encoding: each upvalue encodes [is_local, index]
 	CLOSE_UPVALUE, // 1 byte
-	RETURN         // 1 byte
+	RETURN,        // 1 byte
+	CLASS,         // 1 byte
 };
 
 struct RLE {

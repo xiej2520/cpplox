@@ -1,4 +1,5 @@
 #include "hash_table.hpp"
+#include "lox_object.hpp"
 
 namespace bytelox {
 

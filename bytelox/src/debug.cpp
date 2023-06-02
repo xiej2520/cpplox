@@ -83,6 +83,10 @@ int disassemble_instruction(Chunk &chunk, size_t offset) {
 			return byte_instruction("OP_GET_UPVALUE", chunk, offset);
 		case +OP::SET_UPVALUE:
 			return byte_instruction("OP_SET_UPVALUE", chunk, offset);
+		case +OP::GET_PROPERTY:
+			return constant_instruction("OP_GET_PROPERTY", chunk, offset);
+		case +OP::SET_PROPERTY:
+			return constant_instruction("OP_SET_PROPERTY", chunk, offset);
 		case +OP::EQUAL:
 			return simple_instruction("OP_EQUAL", offset);
 		case +OP::NOT_EQUAL:
@@ -136,6 +140,8 @@ int disassemble_instruction(Chunk &chunk, size_t offset) {
 			return simple_instruction("OP_CLOSE_UPVALUE", offset);
 		case +OP::RETURN:
 			return simple_instruction("OP_RETURN", offset);
+		case +OP::CLASS:
+			return constant_instruction("OP_CLASS", chunk, offset);
 		default:
 			fmt::print("Unknown opcode {}\n", instruction);
 			return offset + 1;

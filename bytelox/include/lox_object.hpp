@@ -2,6 +2,7 @@
 
 #include "chunk.hpp"
 #include "lox_value.hpp"
+#include "hash_table.hpp"
 
 #ifdef DEBUG_LOG_GC
 #define FMT_HEADER_ONLY
@@ -16,6 +17,8 @@ enum class ObjectType {
 	FUNCTION,
 	NATIVE,
 	CLOSURE,
+	CLASS,
+	INSTANCE,
 };
 
 struct ObjectString;
@@ -23,6 +26,8 @@ struct ObjectUpvalue;
 struct ObjectFunction;
 struct ObjectNative;
 struct ObjectClosure;
+struct ObjectClass;
+struct ObjectInstance;
 
 // inheritance would probably work instead
 struct LoxObject {
@@ -48,6 +53,12 @@ struct LoxObject {
 	ObjectClosure &as_closure() {
 		return (ObjectClosure &) *this;
 	}
+	ObjectClass &as_class() {
+		return (ObjectClass &) *this;
+	}
+	ObjectInstance &as_instance() {
+		return (ObjectInstance &) *this;
+	}
 	constexpr bool is_string() {
 		return type == ObjectType::STRING;
 	}
@@ -59,6 +70,12 @@ struct LoxObject {
 	}
 	constexpr bool is_closure() {
 		return type == ObjectType::CLOSURE;
+	}
+	constexpr bool is_class() {
+		return type == ObjectType::CLASS;
+	}
+	constexpr bool is_instance() {
+		return type == ObjectType::INSTANCE;
 	}
 	
 	void print_object();
@@ -125,6 +142,23 @@ struct ObjectClosure {
 	fmt::print("{} allocate {} for {}\n", (void *) upvalues, sizeof(ObjectUpvalue), "ObjectUpvalue");
 #endif
 		obj.type = ObjectType::CLOSURE;
+	}
+};
+
+struct ObjectClass {
+	LoxObject obj;
+	ObjectString *name;
+	ObjectClass(ObjectString *str): name(str) {
+		obj.type = ObjectType::CLASS;
+	}
+};
+
+struct ObjectInstance {
+	LoxObject obj;
+	ObjectClass *klass;
+	HashTable fields;
+	ObjectInstance(ObjectClass *klass): klass(klass) {
+		obj.type = ObjectType::INSTANCE;
 	}
 };
 

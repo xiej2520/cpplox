@@ -36,7 +36,7 @@ Compiler::Compiler(Scanner &scanner, VM &vm): scanner(scanner), vm(vm) {
 	rules[+TokenType::LEFT_BRACE]    = {nullptr, nullptr, Precedence::NONE};
 	rules[+TokenType::RIGHT_BRACE]   = {nullptr, nullptr, Precedence::NONE};
 	rules[+TokenType::COMMA]         = {nullptr, nullptr, Precedence::NONE};
-	rules[+TokenType::DOT]           = {nullptr, nullptr, Precedence::NONE};
+	rules[+TokenType::DOT]           = {nullptr, RULE(dot), Precedence::CALL};
 	rules[+TokenType::MINUS]         = {RULE(unary), RULE(binary), Precedence::TERM};
 	rules[+TokenType::PLUS]          = {nullptr, RULE(binary), Precedence::TERM};
 	rules[+TokenType::SEMICOLON]     = {nullptr, nullptr, Precedence::NONE};
@@ -222,6 +222,9 @@ void Compiler::declaration() {
 	else if (match(TokenType::FUN)) {
 		fun_declaration();
 	}
+	else if (match(TokenType::CLASS)) {
+		class_declaration();
+	}
 	else {
 		statement();
 	}
@@ -272,6 +275,18 @@ void Compiler::fun_declaration() {
 	mark_initialized();
 	function(FunctionType::FUNCTION);
 	define_variable(global);
+}
+
+void Compiler::class_declaration() {
+	consume(TokenType::IDENTIFIER, "Expect class name.");
+	u8 name_constant = identifier_constant(parser.previous);
+	declare_variable();
+
+	emit_bytes(+OP::CLASS, name_constant);
+	define_variable(name_constant);
+	
+	consume(TokenType::LEFT_BRACE, "Expect '{' before class body.");
+	consume(TokenType::RIGHT_BRACE, "Expect '}' after class body.");
 }
 
 void Compiler::print_statement() {
@@ -525,6 +540,18 @@ u8 Compiler::argument_list() {
 	}
 	consume(TokenType::RIGHT_PAREN, "Expect ')' after arguments.");
 	return arg_count;
+}
+void Compiler::dot(bool can_assign) {
+	consume(TokenType::IDENTIFIER, "Expect property name after '.'.");
+	u8 name = identifier_constant(parser.previous);
+	
+	if (can_assign && match(TokenType::EQUAL)) {
+		expression();
+		emit_bytes(+OP::SET_PROPERTY, name);
+	}
+	else {
+		emit_bytes(+OP::GET_PROPERTY, name);
+	}
 }
 
 void Compiler::parse_precedence(Precedence precedence) {

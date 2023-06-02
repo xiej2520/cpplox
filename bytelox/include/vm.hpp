@@ -65,6 +65,8 @@ struct VM {
 	LoxValue make_ObjectFunction(ObjectFunction *fn);
 	LoxValue make_ObjectNative(NativeFn function);
 	LoxValue make_ObjectClosure(ObjectClosure *closure);
+	LoxValue make_ObjectClass(ObjectString *str);
+	LoxValue make_ObjectInstance(ObjectClass *klass);
 	void free_LoxObject(LoxObject *object);
 	void define_native(std::string_view name, NativeFn fn);
 	

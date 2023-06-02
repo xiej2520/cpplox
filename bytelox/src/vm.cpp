@@ -142,6 +142,40 @@ LoxValue VM::make_ObjectClosure(ObjectClosure *closure) {
 	return res;
 }
 
+LoxValue VM::make_ObjectClass(ObjectString *str) {
+	LoxValue res;
+	res.type = ValueType::OBJECT;
+	res.as.obj = (LoxObject *) new ObjectClass(str);
+	res.as.obj->next = objects;
+	objects = res.as.obj;
+#ifdef DEBUG_STRESS_GC
+	stack.push_back(res); // prevent immediate collection
+	collect_garbage();
+	stack.pop_back();
+#endif
+#ifdef DEBUG_LOG_GC
+	fmt::print("{} allocate {} for {}\n", (void *) res.as.obj, sizeof(ObjectClass), "ObjectClass");
+#endif
+	return res;
+}
+
+LoxValue VM::make_ObjectInstance(ObjectClass *klass) {
+	LoxValue res;
+	res.type = ValueType::OBJECT;
+	res.as.obj = (LoxObject *) new ObjectInstance(klass);
+	res.as.obj->next = objects;
+	objects = res.as.obj;
+#ifdef DEBUG_STRESS_GC
+	stack.push_back(res); // prevent immediate collection
+	collect_garbage();
+	stack.pop_back();
+#endif
+#ifdef DEBUG_LOG_GC
+	fmt::print("{} allocate {} for {}\n", (void *) res.as.obj, sizeof(ObjectInstance), "ObjectInstance");
+#endif
+	return res;
+}
+
 void VM::free_LoxObject(LoxObject *object) {
 #ifdef DEBUG_LOG_GC
 	fmt::print("{} free type {}\n", (void *) object, static_cast<int>(object->type));
@@ -172,6 +206,14 @@ void VM::free_LoxObject(LoxObject *object) {
 			bytes_allocated -= sizeof(ObjectClosure);
 			bytes_allocated -= sizeof(closure->upvalues);
 			delete[] closure->upvalues;
+			delete object;
+		}
+		case ObjectType::CLASS: {
+			bytes_allocated -= sizeof(ObjectClass);
+			delete object;
+		}
+		case ObjectType::INSTANCE: {
+			bytes_allocated -= sizeof(ObjectInstance);
 			delete object;
 		}
 	}
@@ -231,6 +273,12 @@ bool VM::call_value(LoxValue callee, int arg_count) {
 				LoxValue result = native(arg_count, &stack.back() - arg_count + 1);
 				stack.resize(stack.size() - arg_count); // get rid of args (leave first for inplace)
 				stack.back() = result;
+				return true;
+			}
+			case ObjectType::CLASS: {
+				ObjectClass &klass = callee.as.obj->as_class();
+				// temporary
+				stack.push_back(make_ObjectInstance(&klass));
 				return true;
 			}
 			default: break; // Non-callable object typ
@@ -354,6 +402,35 @@ InterpretResult VM::run() {
 		case +OP::SET_UPVALUE: {
 			u8 slot = *frame->ip++;
 			*frame->closure->upvalues[slot]->location = peek();
+			break;
+		}
+		case +OP::GET_PROPERTY: {
+			if (!peek().is_object() || !peek().as.obj->is_instance()) {
+				runtime_error("Only instances have properties.");
+				return INTERPRET_RUNTIME_ERROR;
+			}
+			ObjectInstance &instance = peek().as.obj->as_instance();
+			ObjectString *name = &read_constant(frame).as.obj->as_string();
+			LoxValue val;
+			if (instance.fields.get(name, &val)) {
+				stack.pop_back(); // instance
+				stack.push_back(val);
+				break;
+			}
+			
+			runtime_error("Undefined property '{}'.", name->chars.get());
+			return INTERPRET_RUNTIME_ERROR;
+		}
+		case +OP::SET_PROPERTY: {
+			if (!peek(1).is_object() || !peek(1).as.obj->is_instance()) {
+				runtime_error("Only instances have fields.");
+				return INTERPRET_RUNTIME_ERROR;
+			}
+			ObjectInstance &instance = peek(1).as.obj->as_instance();
+			instance.fields.set(&read_constant(frame).as.obj->as_string(), peek());
+			// remove the second element from the top
+			peek(1) = peek();
+			stack.pop_back();
 			break;
 		}
 		case +OP::EQUAL: {
@@ -528,6 +605,10 @@ InterpretResult VM::run() {
 			frame = &frames.back();
 			break;
 		}
+		case +OP::CLASS: {
+			stack.push_back(make_ObjectClass(&read_constant(frame).as.obj->as_string()));
+			break;
+		}
 		}
 	}
 }
@@ -642,6 +723,16 @@ void VM::blacken_object(LoxObject &obj) {
 				mark_object((LoxObject *) closure->upvalues[i]);
 			}
 			break;
+		}
+		case ObjectType::CLASS: {
+			ObjectClass *klass = (ObjectClass *) &obj;
+			mark_object((LoxObject *) klass->name);
+			break;
+		}
+		case ObjectType::INSTANCE: {
+			ObjectInstance &instance = obj.as_instance();
+			mark_object((LoxObject *) instance.klass);
+			mark_table(instance.fields);
 		}
 		case ObjectType::NATIVE:
 		case ObjectType::STRING:

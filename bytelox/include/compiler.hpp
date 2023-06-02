@@ -105,6 +105,7 @@ struct Compiler {
 	void statement();
 	void var_declaration();
 	void fun_declaration();
+	void class_declaration();
 	
 	void print_statement();
 	void expression_statement();
@@ -127,6 +128,7 @@ struct Compiler {
 	void or_(bool);
 	void call(bool);
 	u8 argument_list();
+	void dot(bool);
 	
 	void parse_precedence(Precedence precedence);
 	u8 identifier_constant(const Token &name);

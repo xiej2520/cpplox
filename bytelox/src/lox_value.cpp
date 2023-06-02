@@ -23,6 +23,13 @@ void LoxObject::print_object() {
 			else fmt::print("<fn {}>", as_closure().function->name->chars.get());
 			return;
 		}
+		case ObjectType::CLASS: {
+			fmt::print("{}", as_class().name->chars.get());
+			break;
+		}
+		case ObjectType::INSTANCE: {
+			fmt::print("{} instance", as_instance().klass->name->chars.get());
+		}
 	}
 
 }

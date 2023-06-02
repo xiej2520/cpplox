@@ -28,6 +28,7 @@ Token Scanner::scan_token() {
 	case '}': return make_token(RIGHT_BRACE);
 	case ';': return make_token(SEMICOLON);
 	case ',': return make_token(COMMA);
+	case '.': return make_token(DOT);
 	case '-': return make_token(MINUS);
 	case '+': return make_token(PLUS);
 	case '/': return make_token(SLASH);
@@ -38,7 +39,7 @@ Token Scanner::scan_token() {
 	case '>': return make_token(match('=') ? GREATER_EQUAL : GREATER);
 	case '"': return string();
 	}
-	return error_token("Unexcepted character.");
+	return error_token("Unexpected character.");
 }
 
 Token Scanner::make_token(TokenType type) {

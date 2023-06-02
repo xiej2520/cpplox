@@ -29,6 +29,15 @@ int constant_long_instruction(std::string_view name, Chunk &chunk, int offset) {
 	return offset + 4;
 }
 
+int invoke_instruction(std::string_view name, Chunk &chunk, int offset) {
+	u8 constant = chunk.code[offset + 1];
+	u8 arg_count = chunk.code[offset + 2];
+	fmt::print("{:<16} ({} args) {:4} '", name, arg_count, constant);
+	chunk.constants[constant].print_value();
+	fmt::print("'\n");
+	return offset + 3;
+}
+
 int byte_instruction(std::string_view name, Chunk &chunk, int offset) {
 	u8 slot = chunk.code[offset + 1];
 	fmt::print("{:<16} {:4}\n", name, slot);
@@ -121,6 +130,8 @@ int disassemble_instruction(Chunk &chunk, size_t offset) {
 			return jump_instruction("OP_LOOP", -1, chunk, offset);
 		case +OP::CALL:
 			return byte_instruction("OP_CALL", chunk, offset);
+		case +OP::INVOKE:
+			return invoke_instruction("OP_INVOKE", chunk, offset);
 		case +OP::CLOSURE: {
 			offset++;
 			u8 constant = chunk.code.data()[offset++];
@@ -142,6 +153,8 @@ int disassemble_instruction(Chunk &chunk, size_t offset) {
 			return simple_instruction("OP_RETURN", offset);
 		case +OP::CLASS:
 			return constant_instruction("OP_CLASS", chunk, offset);
+		case +OP::METHOD:
+			return constant_instruction("OP_METHOD", chunk, offset);
 		default:
 			fmt::print("Unknown opcode {}\n", instruction);
 			return offset + 1;

@@ -19,6 +19,7 @@ enum class ObjectType {
 	CLOSURE,
 	CLASS,
 	INSTANCE,
+	BOUND_METHOD,
 };
 
 struct ObjectString;
@@ -28,6 +29,7 @@ struct ObjectNative;
 struct ObjectClosure;
 struct ObjectClass;
 struct ObjectInstance;
+struct ObjectBoundMethod;
 
 // inheritance would probably work instead
 struct LoxObject {
@@ -59,6 +61,9 @@ struct LoxObject {
 	ObjectInstance &as_instance() {
 		return (ObjectInstance &) *this;
 	}
+	ObjectBoundMethod &as_bound_method() {
+		return (ObjectBoundMethod &) *this;
+	}
 	constexpr bool is_string() {
 		return type == ObjectType::STRING;
 	}
@@ -76,6 +81,9 @@ struct LoxObject {
 	}
 	constexpr bool is_instance() {
 		return type == ObjectType::INSTANCE;
+	}
+	constexpr bool is_bound_method() {
+		return type == ObjectType::BOUND_METHOD;
 	}
 	
 	void print_object();
@@ -148,6 +156,7 @@ struct ObjectClosure {
 struct ObjectClass {
 	LoxObject obj;
 	ObjectString *name;
+	HashTable methods;
 	ObjectClass(ObjectString *str): name(str) {
 		obj.type = ObjectType::CLASS;
 	}
@@ -159,6 +168,16 @@ struct ObjectInstance {
 	HashTable fields;
 	ObjectInstance(ObjectClass *klass): klass(klass) {
 		obj.type = ObjectType::INSTANCE;
+	}
+};
+
+struct ObjectBoundMethod {
+	LoxObject obj;
+	LoxValue receiver;
+	ObjectClosure *method;
+	ObjectBoundMethod(LoxValue receiver, ObjectClosure *method):
+			receiver(receiver), method(method) {
+		obj.type = ObjectType::BOUND_METHOD;
 	}
 };
 

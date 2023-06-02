@@ -43,6 +43,8 @@ struct VM {
 	
 	std::vector<CallFrame> frames;
 	std::vector<LoxObject *> gray_stack;
+	
+	ObjectString *init_string = nullptr;
 
 	VM();
 	~VM();
@@ -57,6 +59,10 @@ struct VM {
 	bool call_value(LoxValue callee, int arg_count);
 	ObjectUpvalue *capture_upvalue(LoxValue *local);
 	void close_upvalues(LoxValue *last);
+	void define_method(ObjectString *name);
+	bool bind_method(ObjectClass *klass, ObjectString *name);
+	bool invoke(ObjectString *name, int arg_count);
+	bool invoke_from_class(ObjectClass *klass, ObjectString *name, int arg_count);
 	LoxValue read_constant(CallFrame *frame);
 	void concatenate();
 	
@@ -67,6 +73,7 @@ struct VM {
 	LoxValue make_ObjectClosure(ObjectClosure *closure);
 	LoxValue make_ObjectClass(ObjectString *str);
 	LoxValue make_ObjectInstance(ObjectClass *klass);
+	LoxValue make_ObjectBoundMethod(LoxValue receiver, ObjectClosure *method);
 	void free_LoxObject(LoxObject *object);
 	void define_native(std::string_view name, NativeFn fn);
 	

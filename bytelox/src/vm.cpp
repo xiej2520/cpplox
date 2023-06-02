@@ -13,8 +13,11 @@ LoxValue clock_native(int, LoxValue *) {
 
 using enum InterpretResult;
 
-VM::VM(): compiler(nullptr), objects(nullptr) {
+VM::VM(): objects(nullptr) {
+	Scanner scanner("");
+	compiler = new Compiler(scanner, *this);
 	define_native("clock", clock_native);
+	init_string = &make_ObjectString("init").as.obj->as_string();
 }
 
 VM::~VM() {
@@ -176,6 +179,24 @@ LoxValue VM::make_ObjectInstance(ObjectClass *klass) {
 	return res;
 }
 
+LoxValue VM::make_ObjectBoundMethod(LoxValue receiver, ObjectClosure *method) {
+	LoxValue res;
+	res.type = ValueType::OBJECT;
+	res.as.obj = (LoxObject *) new ObjectBoundMethod(receiver, method);
+	res.as.obj->next = objects;
+	objects = res.as.obj;
+#ifdef DEBUG_STRESS_GC
+	stack.push_back(res); // prevent immediate collection
+	collect_garbage();
+	stack.pop_back();
+#endif
+#ifdef DEBUG_LOG_GC
+	fmt::print("{} allocate {} for {}\n", (void *) res.as.obj, sizeof(ObjectBoundMethod), "ObjectBoundMethod");
+#endif
+	return res;
+}
+
+
 void VM::free_LoxObject(LoxObject *object) {
 #ifdef DEBUG_LOG_GC
 	fmt::print("{} free type {}\n", (void *) object, static_cast<int>(object->type));
@@ -207,14 +228,22 @@ void VM::free_LoxObject(LoxObject *object) {
 			bytes_allocated -= sizeof(closure->upvalues);
 			delete[] closure->upvalues;
 			delete object;
+			break;
 		}
 		case ObjectType::CLASS: {
 			bytes_allocated -= sizeof(ObjectClass);
 			delete object;
+			break;
 		}
 		case ObjectType::INSTANCE: {
 			bytes_allocated -= sizeof(ObjectInstance);
 			delete object;
+			break;
+		}
+		case ObjectType::BOUND_METHOD: {
+			bytes_allocated -= sizeof(ObjectBoundMethod);
+			delete object;
+			break;
 		}
 	}
 }
@@ -277,9 +306,21 @@ bool VM::call_value(LoxValue callee, int arg_count) {
 			}
 			case ObjectType::CLASS: {
 				ObjectClass &klass = callee.as.obj->as_class();
-				// temporary
-				stack.push_back(make_ObjectInstance(&klass));
+				stack[stack.size() - 1 - arg_count] = make_ObjectInstance(&klass);
+				LoxValue initializer;
+				if (klass.methods.get(init_string, &initializer)) {
+					return call(initializer.as.obj->as_closure(), arg_count);
+				}
+				else if(arg_count != 0) {
+					runtime_error("Expected 0 arguments but got {}.", arg_count);
+					return false;
+				}
 				return true;
+			}
+			case ObjectType::BOUND_METHOD: {
+				ObjectBoundMethod &bound = callee.as.obj->as_bound_method();
+				stack[stack.size() - 1 - arg_count] = bound.receiver;
+				return call(*bound.method, arg_count);
 			}
 			default: break; // Non-callable object typ
 		}
@@ -321,6 +362,51 @@ void VM::close_upvalues(LoxValue *last) {
 		upvalue->location = &upvalue->closed;
 		open_upvalues = upvalue->next;
 	}
+}
+
+void VM::define_method(ObjectString *name) {
+	LoxValue method = peek();
+	ObjectClass &klass = peek(1).as.obj->as_class();
+	klass.methods.set(name, method);
+	stack.pop_back();
+}
+
+bool VM::bind_method(ObjectClass *klass, ObjectString *name) {
+	LoxValue method;
+	if (!klass->methods.get(name, &method)) {
+		runtime_error("Undefined property '{}'.", name->chars.get());
+		return false;
+	}
+	LoxValue bound = make_ObjectBoundMethod(peek(), &method.as.obj->as_closure());
+	stack.pop_back();
+	stack.push_back(bound);
+	return true;
+}
+
+bool VM::invoke(ObjectString *name, int arg_count) {
+	LoxValue receiver = peek(arg_count);
+	if (!receiver.is_object() || !receiver.as.obj->is_instance()) {
+		return false;
+	}
+	ObjectInstance &instance = receiver.as.obj->as_instance();
+	
+	// make sure it's not a field being called instead of a method
+	LoxValue value;
+	if (instance.fields.get(name, &value)) {
+		stack[stack.size() - 1 - arg_count] = value;
+		return call_value(value, arg_count);
+	}
+
+	return invoke_from_class(instance.klass, name, arg_count);
+}
+
+bool VM::invoke_from_class(ObjectClass *klass, ObjectString *name, int arg_count) {
+	LoxValue method;
+	if (!klass->methods.get(name, &method)) {
+		runtime_error("Undefined property '{}'.", name->chars.get());
+		return false;
+	}
+	return call(method.as.obj->as_closure(), arg_count);
 }
 
 LoxValue VM::read_constant(CallFrame *frame) {
@@ -417,6 +503,10 @@ InterpretResult VM::run() {
 				stack.push_back(val);
 				break;
 			}
+			if (!bind_method(instance.klass, name)) {
+				return INTERPRET_RUNTIME_ERROR;
+			}
+			break;
 			
 			runtime_error("Undefined property '{}'.", name->chars.get());
 			return INTERPRET_RUNTIME_ERROR;
@@ -564,6 +654,15 @@ InterpretResult VM::run() {
 			frame = &frames.back();
 			break;
 		}
+		case +OP::INVOKE: {
+			ObjectString *method = &read_constant(frame).as.obj->as_string();
+			int arg_count = *frame->ip++;
+			if (!invoke(method, arg_count)) {
+				return INTERPRET_RUNTIME_ERROR;
+			}
+			frame = &frames.back();
+			break;
+		}
 		case +OP::CLOSURE: {
 			// stays alive?
 			ObjectFunction *fn = &read_constant(frame).as.obj->as_function();
@@ -609,6 +708,10 @@ InterpretResult VM::run() {
 			stack.push_back(make_ObjectClass(&read_constant(frame).as.obj->as_string()));
 			break;
 		}
+		case +OP::METHOD: {
+			define_method(&read_constant(frame).as.obj->as_string());
+			break;
+		}
 		}
 	}
 }
@@ -651,6 +754,7 @@ void VM::mark_roots() {
 	}
 	mark_table(globals);
 	mark_compiler_roots();
+	mark_object((LoxObject *) init_string);
 }
 
 void VM::mark_compiler_roots() {
@@ -727,12 +831,19 @@ void VM::blacken_object(LoxObject &obj) {
 		case ObjectType::CLASS: {
 			ObjectClass *klass = (ObjectClass *) &obj;
 			mark_object((LoxObject *) klass->name);
+			mark_table(klass->methods);
 			break;
 		}
 		case ObjectType::INSTANCE: {
 			ObjectInstance &instance = obj.as_instance();
 			mark_object((LoxObject *) instance.klass);
 			mark_table(instance.fields);
+		}
+		case ObjectType::BOUND_METHOD: {
+			ObjectBoundMethod &bound = obj.as_bound_method();
+			mark_value(bound.receiver);
+			mark_object((LoxObject *) bound.method);
+			break;
 		}
 		case ObjectType::NATIVE:
 		case ObjectType::STRING:

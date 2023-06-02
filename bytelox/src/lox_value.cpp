@@ -29,6 +29,12 @@ void LoxObject::print_object() {
 		}
 		case ObjectType::INSTANCE: {
 			fmt::print("{} instance", as_instance().klass->name->chars.get());
+			break;
+		}
+		case ObjectType::BOUND_METHOD: {
+			if (as_bound_method().method->function == nullptr) fmt::print("<script>");
+			else fmt::print("<fn {}>", as_bound_method().method->function->name->chars.get());
+			break;
 		}
 	}
 

@@ -24,6 +24,12 @@ Compiler::LocalState::LocalState(Compiler &compiler, FunctionType type): enclosi
 	local_count = 1;
 	locals[0].depth = 0;
 	locals[0].is_captured = false;
+	if (type != FunctionType::FUNCTION) {
+		locals[0].name.lexeme = "this";
+	}
+	else {
+		locals[0].name.lexeme = "";
+	}
 }
 
 using ParseFn = void (*)();
@@ -53,7 +59,7 @@ Compiler::Compiler(Scanner &scanner, VM &vm): scanner(scanner), vm(vm) {
 	rules[+TokenType::IDENTIFIER]    = {RULE(variable), nullptr, Precedence::NONE};
 	rules[+TokenType::STRING]        = {RULE(string), nullptr, Precedence::NONE};
 	rules[+TokenType::NUMBER]        = {RULE(number), nullptr, Precedence::NONE};
-	rules[+TokenType::AND]           = {nullptr, RULE(and_), Precedence::NONE};
+	rules[+TokenType::AND]           = {nullptr, RULE(and_), Precedence::AND};
 	rules[+TokenType::CLASS]         = {nullptr, nullptr, Precedence::NONE};
 	rules[+TokenType::ELSE]          = {nullptr, nullptr, Precedence::NONE};
 	rules[+TokenType::FALSE]         = {RULE(literal), nullptr, Precedence::NONE};
@@ -61,11 +67,11 @@ Compiler::Compiler(Scanner &scanner, VM &vm): scanner(scanner), vm(vm) {
 	rules[+TokenType::FUN]           = {nullptr, nullptr, Precedence::NONE};
 	rules[+TokenType::IF]            = {nullptr, nullptr, Precedence::NONE};
 	rules[+TokenType::NIL]           = {RULE(literal), nullptr, Precedence::NONE};
-	rules[+TokenType::OR]            = {nullptr, RULE(or_), Precedence::NONE};
+	rules[+TokenType::OR]            = {nullptr, RULE(or_), Precedence::OR};
 	rules[+TokenType::PRINT]         = {nullptr, nullptr, Precedence::NONE};
 	rules[+TokenType::RETURN]        = {nullptr, nullptr, Precedence::NONE};
 	rules[+TokenType::SUPER]         = {nullptr, nullptr, Precedence::NONE};
-	rules[+TokenType::THIS]          = {nullptr, nullptr, Precedence::NONE};
+	rules[+TokenType::THIS]          = {RULE(this_), nullptr, Precedence::NONE};
 	rules[+TokenType::TRUE]          = {RULE(literal), nullptr, Precedence::NONE};
 	rules[+TokenType::VAR]           = {nullptr, nullptr, Precedence::NONE};
 	rules[+TokenType::WHILE]         = {nullptr, nullptr, Precedence::NONE};
@@ -178,7 +184,12 @@ void Compiler::patch_jump(int offset) {
 }
 
 void Compiler::emit_return() {
-	emit_byte(+OP::NIL);
+	if (current->type == FunctionType::INITIALIZER) {
+		emit_bytes(+OP::GET_LOCAL, 0);
+	}
+	else {
+		emit_byte(+OP::NIL);
+	}
 	emit_byte(+OP::RETURN);
 }
 
@@ -279,14 +290,24 @@ void Compiler::fun_declaration() {
 
 void Compiler::class_declaration() {
 	consume(TokenType::IDENTIFIER, "Expect class name.");
+	Token class_name = parser.previous;
 	u8 name_constant = identifier_constant(parser.previous);
 	declare_variable();
 
 	emit_bytes(+OP::CLASS, name_constant);
 	define_variable(name_constant);
 	
+	ClassScope class_scope(current_class);
+	current_class = &class_scope;
+	
+	named_variable(class_name, false);
 	consume(TokenType::LEFT_BRACE, "Expect '{' before class body.");
+	while (!check(TokenType::RIGHT_BRACE) && !check(TokenType::END_OF_FILE)) {
+		method();
+	}
 	consume(TokenType::RIGHT_BRACE, "Expect '}' after class body.");
+	emit_byte(+OP::POP);
+	current_class = current_class->enclosing;
 }
 
 void Compiler::print_statement() {
@@ -412,6 +433,17 @@ void Compiler::function(FunctionType type) {
 	}
 }
 
+void Compiler::method() {
+	consume(TokenType::IDENTIFIER, "Expect method name.");
+	u8 constant = identifier_constant(parser.previous);
+	auto type = FunctionType::METHOD;
+	if (parser.previous.lexeme == "init") {
+		type = FunctionType::INITIALIZER;
+	}
+	function(type);
+	emit_bytes(+OP::METHOD, constant);
+}
+
 void Compiler::return_statement() {
 	if (current->type == FunctionType::SCRIPT) {
 		error("Can't return from top-level code.");
@@ -420,6 +452,9 @@ void Compiler::return_statement() {
 		emit_return();
 	}
 	else {
+		if (current->type == FunctionType::INITIALIZER) {
+			error("Can't return a value from an initializer.");
+		}
 		expression();
 		consume(TokenType::SEMICOLON, "Expect ';' after return value.");
 		emit_byte(+OP::RETURN);
@@ -549,9 +584,22 @@ void Compiler::dot(bool can_assign) {
 		expression();
 		emit_bytes(+OP::SET_PROPERTY, name);
 	}
+	else if (match(TokenType::LEFT_PAREN)) {
+		u8 arg_count = argument_list();
+		emit_bytes(+OP::INVOKE, name);
+		emit_byte(arg_count);
+	}
 	else {
 		emit_bytes(+OP::GET_PROPERTY, name);
 	}
+}
+
+void Compiler::this_(bool) {
+	if (current_class == nullptr) {
+		error("Can't use 'this' outside of a class.");
+		return;
+	}
+	variable(false);
 }
 
 void Compiler::parse_precedence(Precedence precedence) {

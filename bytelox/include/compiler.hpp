@@ -42,7 +42,9 @@ struct Compiler {
 	
 	enum class FunctionType {
 		FUNCTION,
-		SCRIPT
+		INITIALIZER,
+		METHOD,
+		SCRIPT,
 	};
 
 	struct Upvalue {
@@ -61,6 +63,11 @@ struct Compiler {
 		LocalState(Compiler &compiler, FunctionType type);
 	};
 	
+	struct ClassScope {
+		ClassScope *enclosing;
+		ClassScope(ClassScope *enclosing): enclosing(enclosing) {}
+	};
+	
 	std::array<ParseRule, num_parse> rules;
 	
 	struct {
@@ -73,6 +80,7 @@ struct Compiler {
 	Scanner &scanner;
 	VM &vm; // for adding LoxObject constants that need to have references for GC
 	LocalState *current = nullptr;
+	ClassScope *current_class = nullptr;
 	
 	Chunk *compiling_chunk = nullptr;
 	Chunk *current_chunk();
@@ -115,6 +123,7 @@ struct Compiler {
 	void for_statement();
 	void function(FunctionType type);
 	void return_statement();
+	void method();
 	
 	void number(bool);
 	void grouping(bool);
@@ -129,6 +138,7 @@ struct Compiler {
 	void call(bool);
 	u8 argument_list();
 	void dot(bool);
+	void this_(bool);
 	
 	void parse_precedence(Precedence precedence);
 	u8 identifier_constant(const Token &name);

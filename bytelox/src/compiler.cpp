@@ -70,7 +70,7 @@ Compiler::Compiler(Scanner &scanner, VM &vm): scanner(scanner), vm(vm) {
 	rules[+TokenType::OR]            = {nullptr, RULE(or_), Precedence::OR};
 	rules[+TokenType::PRINT]         = {nullptr, nullptr, Precedence::NONE};
 	rules[+TokenType::RETURN]        = {nullptr, nullptr, Precedence::NONE};
-	rules[+TokenType::SUPER]         = {nullptr, nullptr, Precedence::NONE};
+	rules[+TokenType::SUPER]         = {RULE(super), nullptr, Precedence::NONE};
 	rules[+TokenType::THIS]          = {RULE(this_), nullptr, Precedence::NONE};
 	rules[+TokenType::TRUE]          = {RULE(literal), nullptr, Precedence::NONE};
 	rules[+TokenType::VAR]           = {nullptr, nullptr, Precedence::NONE};
@@ -300,6 +300,22 @@ void Compiler::class_declaration() {
 	ClassScope class_scope(current_class);
 	current_class = &class_scope;
 	
+	if (match(TokenType::LESS)) {
+		consume(TokenType::IDENTIFIER, "Expect superclass name.");
+		variable(false);
+		if (identifiers_equal(class_name, parser.previous)) {
+			error("A class can't inherit from itself.");
+		}
+		
+		begin_scope();
+		add_local(synthetic_token("super"));
+		define_variable(0);
+
+		named_variable(class_name, false);
+		emit_byte(+OP::INHERIT);
+		current_class->has_superclass = true;
+	}
+	
 	named_variable(class_name, false);
 	consume(TokenType::LEFT_BRACE, "Expect '{' before class body.");
 	while (!check(TokenType::RIGHT_BRACE) && !check(TokenType::END_OF_FILE)) {
@@ -307,6 +323,9 @@ void Compiler::class_declaration() {
 	}
 	consume(TokenType::RIGHT_BRACE, "Expect '}' after class body.");
 	emit_byte(+OP::POP);
+	if (current_class->has_superclass) {
+		end_scope();
+	}
 	current_class = current_class->enclosing;
 }
 
@@ -600,6 +619,37 @@ void Compiler::this_(bool) {
 		return;
 	}
 	variable(false);
+}
+
+Token Compiler::synthetic_token(std::string_view text) {
+	Token token;
+	token.lexeme = text;
+	return token;
+}
+
+void Compiler::super(bool) {
+	if (current_class == nullptr) {
+		error("Can't use 'super' outside of a class.");
+	}
+	else if (!current_class->has_superclass) {
+		error("Can't use 'super' in a class with no superclass.");
+	}
+
+	consume(TokenType::DOT, "Expect '.' after 'super'.");
+	consume(TokenType::IDENTIFIER, "Expect superclass method name.");
+	u8 name = identifier_constant(parser.previous);
+	
+	named_variable(synthetic_token("this"), false);
+	if (match(TokenType::LEFT_PAREN)) {
+		u8 arg_count = argument_list();
+		named_variable(synthetic_token("super"), false);
+		emit_bytes(+OP::SUPER_INVOKE, name);
+		emit_byte(arg_count);
+	}
+	else {
+		named_variable(synthetic_token("super"), false);
+		emit_bytes(+OP::GET_SUPER, name);
+	}
 }
 
 void Compiler::parse_precedence(Precedence precedence) {

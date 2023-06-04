@@ -523,6 +523,15 @@ InterpretResult VM::run() {
 			stack.pop_back();
 			break;
 		}
+		case +OP::GET_SUPER: {
+			ObjectString *name = &read_constant(frame).as.obj->as_string();
+			ObjectClass *superclass = &peek().as.obj->as_class();
+			stack.pop_back();
+			if (!bind_method(superclass, name)) {
+				return INTERPRET_RUNTIME_ERROR;
+			}
+			break;
+		}
 		case +OP::EQUAL: {
 			peek(1) = LoxValue(peek(1) == peek(0));
 			stack.pop_back();
@@ -663,6 +672,17 @@ InterpretResult VM::run() {
 			frame = &frames.back();
 			break;
 		}
+		case +OP::SUPER_INVOKE: {
+			ObjectString *method = &read_constant(frame).as.obj->as_string();
+			int arg_count = *frame->ip++;
+			ObjectClass *superclass = &peek().as.obj->as_class();
+			stack.pop_back();
+			if (!invoke_from_class(superclass, method, arg_count)) {
+				return INTERPRET_RUNTIME_ERROR;
+			}
+			frame = &frames.back();
+			break;
+		}
 		case +OP::CLOSURE: {
 			// stays alive?
 			ObjectFunction *fn = &read_constant(frame).as.obj->as_function();
@@ -706,6 +726,17 @@ InterpretResult VM::run() {
 		}
 		case +OP::CLASS: {
 			stack.push_back(make_ObjectClass(&read_constant(frame).as.obj->as_string()));
+			break;
+		}
+		case +OP::INHERIT: {
+			LoxValue superclass = peek(1);
+			if (!superclass.is_object() || !superclass.as.obj->is_class()) {
+				runtime_error("Superclass must be a class.");
+				return INTERPRET_RUNTIME_ERROR;
+			}
+			ObjectClass &subclass = peek().as.obj->as_class();
+			subclass.methods.add_all(superclass.as.obj->as_class().methods);
+			stack.pop_back(); // pop subclass
 			break;
 		}
 		case +OP::METHOD: {

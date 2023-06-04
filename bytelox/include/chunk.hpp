@@ -30,6 +30,7 @@ enum class OP {
 	SET_UPVALUE,   // 
 	GET_PROPERTY,  //
 	SET_PROPERTY,  //
+	GET_SUPER,     //
 	EQUAL,         // 1 byte
 	NOT_EQUAL,     // 1 byte
 	GREATER,       // 1 byte
@@ -48,10 +49,12 @@ enum class OP {
 	LOOP,          // 3 bytes, 2 byte little endian offset
 	CALL,          // 1 byte
 	INVOKE,        // 3 bytes, index of property name, num args
+	SUPER_INVOKE,  // 3 bytes, index of property name, num args
 	CLOSURE,       // Variable encoding: each upvalue encodes [is_local, index]
 	CLOSE_UPVALUE, // 1 byte
 	RETURN,        // 1 byte
 	CLASS,         // 1 byte
+	INHERIT,       //
 	METHOD,        //
 };
 

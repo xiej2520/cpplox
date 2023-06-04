@@ -65,6 +65,7 @@ struct Compiler {
 	
 	struct ClassScope {
 		ClassScope *enclosing;
+		bool has_superclass = false;
 		ClassScope(ClassScope *enclosing): enclosing(enclosing) {}
 	};
 	
@@ -139,6 +140,8 @@ struct Compiler {
 	u8 argument_list();
 	void dot(bool);
 	void this_(bool);
+	Token synthetic_token(std::string_view text);
+	void super(bool);
 	
 	void parse_precedence(Precedence precedence);
 	u8 identifier_constant(const Token &name);

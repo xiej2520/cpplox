@@ -96,6 +96,8 @@ int disassemble_instruction(Chunk &chunk, size_t offset) {
 			return constant_instruction("OP_GET_PROPERTY", chunk, offset);
 		case +OP::SET_PROPERTY:
 			return constant_instruction("OP_SET_PROPERTY", chunk, offset);
+		case +OP::GET_SUPER:
+			return constant_instruction("OP_GET_SUPER", chunk, offset);
 		case +OP::EQUAL:
 			return simple_instruction("OP_EQUAL", offset);
 		case +OP::NOT_EQUAL:
@@ -132,6 +134,8 @@ int disassemble_instruction(Chunk &chunk, size_t offset) {
 			return byte_instruction("OP_CALL", chunk, offset);
 		case +OP::INVOKE:
 			return invoke_instruction("OP_INVOKE", chunk, offset);
+		case +OP::SUPER_INVOKE:
+			return invoke_instruction("OP_SUPER_INVOKE", chunk, offset);
 		case +OP::CLOSURE: {
 			offset++;
 			u8 constant = chunk.code.data()[offset++];
@@ -153,6 +157,8 @@ int disassemble_instruction(Chunk &chunk, size_t offset) {
 			return simple_instruction("OP_RETURN", offset);
 		case +OP::CLASS:
 			return constant_instruction("OP_CLASS", chunk, offset);
+		case +OP::INHERIT:
+			return simple_instruction("OP_INHERIT", offset);
 		case +OP::METHOD:
 			return constant_instruction("OP_METHOD", chunk, offset);
 		default:

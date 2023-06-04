@@ -268,9 +268,10 @@ void VM::concatenate() {
 	std::memcpy(chars.get(), a.chars.get(), a.length);
 	std::memcpy(chars.get() + a.length, b.chars.get(), b.length);
 	chars[length] = '\0';
-	peek(1).as.obj->as_string().length = length;
-	peek(1).as.obj->as_string().chars = std::move(chars);
+	LoxValue concat = make_ObjectString(chars.get());
 	stack.pop_back();
+	stack.pop_back();
+	stack.push_back(concat);
 }
 
 // inline?
@@ -633,6 +634,7 @@ InterpretResult VM::run() {
 		}
 		case +OP::PRINT: {
 			peek().print_value();
+			fmt::print("\n");
 			stack.pop_back();
 			break;
 		}

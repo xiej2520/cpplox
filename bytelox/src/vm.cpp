@@ -226,17 +226,17 @@ bool VM::call_value(LoxValue callee, int arg_count) {
 	return false;
 }
 
-ObjectUpvalue *VM::capture_upvalue(LoxValue *local) {
+ObjectUpvalue *VM::capture_upvalue(u32 local_index) {
 	ObjectUpvalue *prev_upvalue = nullptr;
 	ObjectUpvalue *upvalue = open_upvalues;
-	while (upvalue != nullptr && upvalue->location > local) {
+	while (upvalue != nullptr && upvalue->stack_index > local_index) {
 		prev_upvalue = upvalue;
 		upvalue = upvalue->next;
 	}
-	if (upvalue != nullptr && upvalue->location == local) {
+	if (upvalue != nullptr && upvalue->stack_index == local_index) {
 		return upvalue;
 	}
-	LoxValue val = GC<ObjectUpvalue>(local);
+	LoxValue val = GC<ObjectUpvalue>(local_index);
 	ObjectUpvalue *created_upvalue = &val.as_upvalue();
 
 	created_upvalue->next = upvalue;
@@ -249,11 +249,11 @@ ObjectUpvalue *VM::capture_upvalue(LoxValue *local) {
 	return created_upvalue;
 }
 
-void VM::close_upvalues(LoxValue *last) {
-	while (open_upvalues != nullptr && open_upvalues->location >= last) {
+void VM::close_upvalues(u32 last_index) {
+	while (open_upvalues != nullptr && open_upvalues->stack_index >= last_index) {
 		ObjectUpvalue *upvalue = open_upvalues;
-		upvalue->closed = *upvalue->location;
-		upvalue->location = &upvalue->closed;
+		upvalue->closed = stack[upvalue->stack_index];
+		upvalue->stack_index = UINT32_MAX;
 		open_upvalues = upvalue->next;
 	}
 }
@@ -376,12 +376,16 @@ InterpretResult VM::run() {
 		}
 		case +OP::GET_UPVALUE: {
 			u8 slot = *frame->ip++;
-			stack.push_back(*frame->closure->upvalues[slot]->location);
+			ObjectUpvalue *upvalue = frame->closure->upvalues[slot];
+			if (upvalue->stack_index == UINT32_MAX) stack.push_back(upvalue->closed);
+			else stack.push_back(stack[upvalue->stack_index]);
 			break;
 		}
 		case +OP::SET_UPVALUE: {
 			u8 slot = *frame->ip++;
-			*frame->closure->upvalues[slot]->location = peek();
+			ObjectUpvalue *upvalue = frame->closure->upvalues[slot];
+			// check if closed
+			upvalue->stack_index == UINT32_MAX ? upvalue->closed : stack[upvalue->stack_index] = peek();
 			break;
 		}
 		case +OP::GET_PROPERTY: {
@@ -587,7 +591,7 @@ InterpretResult VM::run() {
 				u8 is_local = *frame->ip++;
 				u8 index = *frame->ip++;
 				if (is_local) {
-					closure->upvalues[i] = capture_upvalue(&stack[frame->slots + index]);
+					closure->upvalues[i] = capture_upvalue(frame->slots + index);
 				}
 				else {
 					closure->upvalues[i] = frame->closure->upvalues[index];
@@ -596,14 +600,14 @@ InterpretResult VM::run() {
 			break;
 		}
 		case +OP::CLOSE_UPVALUE: {
-			close_upvalues(&stack.back());
+			close_upvalues(stack.size() - 1);
 			stack.pop_back();
 			break;
 		}
 		case +OP::RETURN: {
 			LoxValue result = stack.back();
 			stack.pop_back(); // get rid of returned value
-			close_upvalues(&stack[frame->slots]);
+			close_upvalues(frame->slots);
 			if (frames.size() == 1) { // last frame popped
 				frames.pop_back();
 				stack.pop_back();

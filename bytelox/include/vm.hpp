@@ -57,8 +57,8 @@ struct VM {
 	LoxValue &peek();
 	bool call(ObjectClosure &closure, int arg_count);
 	bool call_value(LoxValue callee, int arg_count);
-	ObjectUpvalue *capture_upvalue(LoxValue *local);
-	void close_upvalues(LoxValue *last);
+	ObjectUpvalue *capture_upvalue(u32 local_index);
+	void close_upvalues(u32 last_index);
 	void define_method(ObjectString *name);
 	bool bind_method(ObjectClass *klass, ObjectString *name);
 	bool invoke(ObjectString *name, int arg_count);

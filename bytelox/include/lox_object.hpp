@@ -102,10 +102,11 @@ struct ObjectString: LoxObject {
 };
 
 struct ObjectUpvalue: LoxObject {
-	LoxValue *location;
+	// index of the upvalue on the stack, if index == UINT32_MAX, use closed
+	u32 stack_index;
 	LoxValue closed = LoxValue();
 	ObjectUpvalue *next = nullptr;
-	constexpr ObjectUpvalue(LoxValue *slot): location(slot) {
+	constexpr ObjectUpvalue(u32 index): stack_index(index) {
 		type = ObjectType::UPVALUE;
 	}
 };

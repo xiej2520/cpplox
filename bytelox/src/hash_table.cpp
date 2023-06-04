@@ -46,7 +46,7 @@ bool HashTable::del(ObjectString *key) {
 
 Entry *HashTable::find(ObjectString *key) {
 	Entry *tombstone = nullptr;
-	for (u32 index = key->hash % capacity; true; index = (index + 1) % capacity) {
+	for (u32 index = (key->hash & (capacity - 1)); true; index = ((index + 1) & (capacity - 1))) {
 		Entry *entry = &entries[index];
 		if (entry->key == nullptr) {
 			if (entry->value.is_nil()) {
@@ -65,7 +65,7 @@ Entry *HashTable::find(ObjectString *key) {
 }
 
 Entry *HashTable::find_in_array(Entry array[], u32 array_cap, ObjectString *key) {
-	for (u32 index = key->hash % array_cap; true; index = (index + 1) % array_cap) {
+	for (u32 index = (key->hash & (array_cap - 1)); true; index = ((index + 1) & (array_cap - 1))) {
 		Entry *entry = &array[index];
 		if (entry->key == key || entry->key == nullptr) {
 			return entry;
@@ -80,7 +80,7 @@ ObjectString *HashTable::find_string(std::string_view str) {
 		hash ^= (u8) str[i];
 		hash *= 16777619;
 	}
-	for (u32 index = hash % capacity; ; index = (index + 1) % capacity) {
+	for (u32 index = (hash & (capacity - 1)); ; index = ((index + 1) & (capacity - 1))) {
 		Entry *entry = &entries[index];
 		if (entry->key == nullptr) {
 			// non-tombstone entry

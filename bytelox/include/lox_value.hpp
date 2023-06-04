@@ -17,6 +17,11 @@ enum class ValueType {
 
 struct LoxObject;
 
+#undef NAN_BOXING
+#ifdef NAN_BOXING
+
+#else
+
 struct LoxValue {
 	ValueType type;
 	union {
@@ -59,5 +64,6 @@ struct LoxValue {
 
 	void print_value();
 };
+#endif
 
 }

@@ -385,7 +385,12 @@ InterpretResult VM::run() {
 			u8 slot = *frame->ip++;
 			ObjectUpvalue *upvalue = frame->closure->upvalues[slot];
 			// check if closed
-			upvalue->stack_index == UINT32_MAX ? upvalue->closed : stack[upvalue->stack_index] = peek();
+			if (upvalue->stack_index == UINT32_MAX) {
+				upvalue->closed = peek();
+			}
+			else {
+				stack[upvalue->stack_index] = peek();
+			}
 			break;
 		}
 		case +OP::GET_PROPERTY: {

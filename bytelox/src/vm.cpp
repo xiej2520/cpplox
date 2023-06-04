@@ -476,7 +476,7 @@ InterpretResult VM::run() {
 			// using set to check if defined?
 			if (globals.set(name, peek())) {
 				globals.del(name);
-				runtime_error("Undefined variable '{}'", name->chars.get());
+				runtime_error("Undefined variable '{}'.", name->chars.get());
 				return INTERPRET_RUNTIME_ERROR;
 			}
 			break;
@@ -588,7 +588,7 @@ InterpretResult VM::run() {
 				stack.pop_back();
 			}
 			else {
-				runtime_error("Operands must be numbers.");
+				runtime_error("Operands must be two numbers or two strings.");
 				return INTERPRET_RUNTIME_ERROR;
 			}
 			break;

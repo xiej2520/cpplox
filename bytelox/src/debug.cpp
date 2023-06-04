@@ -146,7 +146,7 @@ int disassemble_instruction(Chunk &chunk, size_t offset) {
 			for (int j=0; j<fn.upvalue_count; j++) {
 				int is_local = chunk.code[offset++];
 				int index = chunk.code[offset++];
-				fmt::print("{:0>4}    |                     {} {}\n",
+				fmt::print("{:0>4}      |                     {} {}\n",
 						offset - 2, is_local ? "local" : "upvalue", index);
 			}
 			return offset;

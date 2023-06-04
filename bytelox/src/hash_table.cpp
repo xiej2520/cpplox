@@ -12,7 +12,7 @@ HashTable::HashTable() {
 
 bool HashTable::set(ObjectString *key, LoxValue value) {
 	if (size + 1 > capacity * TABLE_MAX_LOAD) {
-		adjust_capacity(capacity *= 2);
+		adjust_capacity(capacity * 2);
 	}
 
 	Entry *entry = find(key);
@@ -101,7 +101,6 @@ void HashTable::adjust_capacity(u32 new_capacity) {
 		new_entries[i].value = LoxValue();
 	}
 	// move over
-	size = 0;
 	for (u32 i=0; i<capacity; i++) {
 		Entry *entry = &entries[i];
 		if (entry->key == nullptr) continue;
@@ -109,7 +108,6 @@ void HashTable::adjust_capacity(u32 new_capacity) {
 		Entry *dest = find_in_array(new_entries.get(), new_capacity, entry->key);
 		dest->key = entry->key;
 		dest->value = entry->value;
-		size++;
 	}
 
 	entries = std::move(new_entries);

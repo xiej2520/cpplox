@@ -108,7 +108,7 @@ ObjectFunction *Compiler::end_compiler() {
 	ObjectFunction *fn = current->function;
 #ifdef DEBUG_PRINT_CODE
 	if (!parser.had_error) {
-		disassemble_chunk(*current_chunk(), fn->name != nullptr ? fn->name->chars.get() : "code");
+		disassemble_chunk(*current_chunk(), fn->name != nullptr ? fn->name->chars.get() : "<script>");
 	}
 #endif
 	current = current->enclosing;
@@ -210,7 +210,7 @@ void Compiler::begin_scope() {
 void Compiler::end_scope() {
 	current->scope_depth--;
 	while (current->local_count > 0 &&
-			current->locals[current->local_count-1].depth > current->scope_depth){
+			current->locals[current->local_count-1].depth > current->scope_depth) {
 		if (current->locals[current->local_count - 1].is_captured) {
 			emit_byte(+OP::CLOSE_UPVALUE);
 		}
@@ -440,7 +440,7 @@ void Compiler::function(FunctionType type) {
 			define_variable(constant);
 		} while (match(TokenType::COMMA));
 	}
-	consume(TokenType::RIGHT_PAREN, "Expect '(' after parameters.");
+	consume(TokenType::RIGHT_PAREN, "Expect ')' after parameters.");
 	consume(TokenType::LEFT_BRACE, "Expect '{' before function body.");
 	block();
 	
@@ -590,7 +590,7 @@ u8 Compiler::argument_list() {
 				error("Can't have more than 255 arguments.");
 			}
 			arg_count++;
-		} while(match(TokenType::COMMA));
+		} while (match(TokenType::COMMA));
 	}
 	consume(TokenType::RIGHT_PAREN, "Expect ')' after arguments.");
 	return arg_count;

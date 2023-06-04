@@ -114,7 +114,9 @@ struct ObjectUpvalue {
 	LoxValue *location;
 	LoxValue closed = LoxValue();
 	ObjectUpvalue *next = nullptr;
-	constexpr ObjectUpvalue(LoxValue *slot): location(slot) {}
+	constexpr ObjectUpvalue(LoxValue *slot): location(slot) {
+		obj.type = ObjectType::UPVALUE;
+	}
 };
 
 struct ObjectFunction {

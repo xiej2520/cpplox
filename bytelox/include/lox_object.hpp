@@ -22,16 +22,6 @@ enum class ObjectType {
 	BOUND_METHOD,
 };
 
-struct ObjectString;
-struct ObjectUpvalue;
-struct ObjectFunction;
-struct ObjectNative;
-struct ObjectClosure;
-struct ObjectClass;
-struct ObjectInstance;
-struct ObjectBoundMethod;
-
-// inheritance would probably work instead
 struct LoxObject {
 	ObjectType type;
 	bool is_marked = false;
@@ -67,6 +57,9 @@ struct LoxObject {
 	constexpr bool is_string() {
 		return type == ObjectType::STRING;
 	}
+	constexpr bool is_upvalue() {
+		return type == ObjectType::UPVALUE;
+	}
 	constexpr bool is_function() {
 		return type == ObjectType::FUNCTION;
 	}
@@ -89,15 +82,14 @@ struct LoxObject {
 	void print_object();
 };
 
-struct ObjectString {
-	LoxObject obj;
+struct ObjectString: LoxObject {
 	u32 length; // does NOT including trailing '\0'
 	u32 hash;
 	std::unique_ptr<char[]> chars;
 	constexpr ObjectString(std::string_view str):
 		length(str.size()),
 		chars(std::make_unique_for_overwrite<char[]>(length + 1)) {
-			obj.type = ObjectType::STRING;
+			type = ObjectType::STRING;
 			std::memcpy(chars.get(), str.data(), str.size());
 			chars[length] = '\0';
 			// FNV-1a hash function
@@ -109,39 +101,35 @@ struct ObjectString {
 	}
 };
 
-struct ObjectUpvalue {
-	LoxObject obj;
+struct ObjectUpvalue: LoxObject {
 	LoxValue *location;
 	LoxValue closed = LoxValue();
 	ObjectUpvalue *next = nullptr;
 	constexpr ObjectUpvalue(LoxValue *slot): location(slot) {
-		obj.type = ObjectType::UPVALUE;
+		type = ObjectType::UPVALUE;
 	}
 };
 
-struct ObjectFunction {
-	LoxObject obj;
+struct ObjectFunction: LoxObject {
 	int arity = 0;
 	Chunk chunk;
 	ObjectString *name = nullptr;
 	int upvalue_count = 0;
 	constexpr ObjectFunction() {
-		obj.type = ObjectType::FUNCTION;
+		type = ObjectType::FUNCTION;
 	}
 };
 
 using NativeFn = LoxValue (*)(int arg_count, LoxValue *args);
 
-struct ObjectNative {
-	LoxObject obj;
+struct ObjectNative: LoxObject {
 	NativeFn function;
 	constexpr ObjectNative(NativeFn fn): function(fn) {
-		obj.type = ObjectType::NATIVE;
+		type = ObjectType::NATIVE;
 	}
 };
 
-struct ObjectClosure {
-	LoxObject obj;
+struct ObjectClosure: LoxObject {
 	ObjectFunction *function;
 	ObjectUpvalue **upvalues;
 	int upvalue_count;
@@ -151,35 +139,32 @@ struct ObjectClosure {
 #ifdef DEBUG_LOG_GC
 	fmt::print("{} allocate {} for {}\n", (void *) upvalues, sizeof(ObjectUpvalue), "ObjectUpvalue");
 #endif
-		obj.type = ObjectType::CLOSURE;
+		type = ObjectType::CLOSURE;
 	}
 };
 
-struct ObjectClass {
-	LoxObject obj;
+struct ObjectClass: LoxObject {
 	ObjectString *name;
 	HashTable methods;
 	ObjectClass(ObjectString *str): name(str) {
-		obj.type = ObjectType::CLASS;
+		type = ObjectType::CLASS;
 	}
 };
 
-struct ObjectInstance {
-	LoxObject obj;
+struct ObjectInstance: LoxObject {
 	ObjectClass *klass;
 	HashTable fields;
 	ObjectInstance(ObjectClass *klass): klass(klass) {
-		obj.type = ObjectType::INSTANCE;
+		type = ObjectType::INSTANCE;
 	}
 };
 
-struct ObjectBoundMethod {
-	LoxObject obj;
+struct ObjectBoundMethod: LoxObject {
 	LoxValue receiver;
 	ObjectClosure *method;
 	ObjectBoundMethod(LoxValue receiver, ObjectClosure *method):
 			receiver(receiver), method(method) {
-		obj.type = ObjectType::BOUND_METHOD;
+		type = ObjectType::BOUND_METHOD;
 	}
 };
 

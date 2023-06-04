@@ -6,6 +6,70 @@
 
 namespace bytelox {
 
+bool LoxValue::is_string() {
+	return is_object() && as.obj->is_string();
+}
+
+bool LoxValue::is_upvalue() {
+	return is_object() && as.obj->is_upvalue();
+}
+
+bool LoxValue::is_function() {
+	return is_object() && as.obj->is_function();
+}
+
+bool LoxValue::is_native() {
+	return is_object() && as.obj->is_native();
+}
+
+bool LoxValue::is_closure() {
+	return is_object() && as.obj->is_closure();
+}
+
+bool LoxValue::is_class() {
+	return is_object() && as.obj->is_class();
+}
+
+bool LoxValue::is_instance() {
+	return is_object() && as.obj->is_instance();
+}
+
+bool LoxValue::is_bound_method() {
+	return is_object() && as.obj->is_bound_method();
+}
+
+ObjectString &LoxValue::as_string() {
+	return static_cast<ObjectString &>(*as.obj);
+}
+
+ObjectUpvalue &LoxValue::as_upvalue() {
+	return static_cast<ObjectUpvalue &>(*as.obj);
+}
+
+ObjectFunction &LoxValue::as_function() {
+	return static_cast<ObjectFunction &>(*as.obj);
+}
+
+ObjectNative &LoxValue::as_native() {
+	return static_cast<ObjectNative &>(*as.obj);
+}
+
+ObjectClass &LoxValue::as_class() {
+	return static_cast<ObjectClass &>(*as.obj);
+}
+
+ObjectClosure &LoxValue::as_closure() {
+	return static_cast<ObjectClosure &>(*as.obj);
+}
+
+ObjectInstance &LoxValue::as_instance() {
+	return static_cast<ObjectInstance &>(*as.obj);
+}
+
+ObjectBoundMethod &LoxValue::as_bound_method() {
+	return static_cast<ObjectBoundMethod &>(*as.obj);
+}
+
 void LoxObject::print_object() {
 	switch (type) {
 		case ObjectType::STRING: fmt::print("{}", as_string().chars.get()); return;

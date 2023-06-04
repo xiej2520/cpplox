@@ -66,14 +66,11 @@ struct VM {
 	LoxValue read_constant(CallFrame *frame);
 	void concatenate();
 	
-	LoxValue make_LoxObject(LoxObject *obj);
-	LoxValue make_ObjectString(std::string_view str);
-	LoxValue make_ObjectFunction(ObjectFunction *fn);
-	LoxValue make_ObjectNative(NativeFn function);
-	LoxValue make_ObjectClosure(ObjectClosure *closure);
-	LoxValue make_ObjectClass(ObjectString *str);
-	LoxValue make_ObjectInstance(ObjectClass *klass);
-	LoxValue make_ObjectBoundMethod(LoxValue receiver, ObjectClosure *method);
+	// create garbage collected LoxObject of type T, return wrapped in LoxValue
+	template<typename T, typename... Args>
+	LoxValue GC(Args&&... args);
+	// return LoxValue with pointer to ObjectString of str, either new or interned
+	LoxValue get_ObjectString(std::string_view str);
 	void free_LoxObject(LoxObject *object);
 	void define_native(std::string_view name, NativeFn fn);
 	

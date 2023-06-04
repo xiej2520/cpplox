@@ -51,16 +51,16 @@ struct Compiler {
 		u8 index;
 		bool is_local;
 	};
-	// rename to LocalScope?
-	struct LocalState {
-		LocalState *enclosing = nullptr;
+
+	struct FunctionScope {
+		FunctionScope *enclosing = nullptr;
 		ObjectFunction *function = nullptr;
 		FunctionType type = FunctionType::SCRIPT;
 		Local locals[UINT8_MAX + 1];
 		int local_count = 0;
 		int scope_depth = 0;
 		Upvalue upvalues[UINT8_MAX + 1];
-		LocalState(Compiler &compiler, FunctionType type);
+		FunctionScope(Compiler &compiler, FunctionType type);
 	};
 	
 	struct ClassScope {
@@ -80,7 +80,7 @@ struct Compiler {
 	
 	Scanner &scanner;
 	VM &vm; // for adding LoxObject constants that need to have references for GC
-	LocalState *current = nullptr;
+	FunctionScope *current_fn = nullptr;
 	ClassScope *current_class = nullptr;
 	
 	Chunk *compiling_chunk = nullptr;
@@ -90,7 +90,8 @@ struct Compiler {
 	~Compiler();
 
 	ObjectFunction *compile(std::string_view src);
-	ObjectFunction *end_compiler();
+
+	ObjectFunction *end_fn_scope();
 
 	void advance();
 	void consume(TokenType type, std::string_view msg);
@@ -146,9 +147,9 @@ struct Compiler {
 	void parse_precedence(Precedence precedence);
 	u8 identifier_constant(const Token &name);
 	bool identifiers_equal(Token &a, Token &b);
-	int resolve_local(LocalState &ls, Token &name);
-	int add_upvalue(LocalState &ls, u8 index, bool is_local);
-	int resolve_upvalue(LocalState &ls, Token &name);
+	int resolve_local(FunctionScope &fs, Token &name);
+	int add_upvalue(FunctionScope &fs, u8 index, bool is_local);
+	int resolve_upvalue(FunctionScope &fs, Token &name);
 	u8 parse_variable(std::string_view msg);
 	void declare_variable();
 	void define_variable(u8 global);

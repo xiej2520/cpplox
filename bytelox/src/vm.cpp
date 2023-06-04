@@ -17,7 +17,7 @@ VM::VM(): objects(nullptr) {
 	Scanner scanner("");
 	compiler = new Compiler(scanner, *this);
 	define_native("clock", clock_native);
-	init_string = &make_ObjectString("init").as.obj->as_string();
+	init_string = &get_ObjectString("init").as_string();
 }
 
 VM::~VM() {
@@ -34,168 +34,64 @@ InterpretResult VM::interpret(std::string_view src) {
 	ObjectFunction *fn = compiler->compile(src);
 	if (fn == nullptr) return INTERPRET_COMPILE_ERROR;
 	
-	stack.push_back(make_ObjectFunction(fn));
-	ObjectClosure *closure = new ObjectClosure(fn);
-	bytes_allocated += sizeof(ObjectClosure);
-#ifdef DEBUG_LOG_GC
-	fmt::print("{} allocate {} for {}\n", (void *) closure, sizeof(ObjectClosure), "ObjectClosure");
-#endif
-	stack.pop_back();
-	stack.push_back(make_ObjectClosure(closure));
-	call(*closure, 0);
+	stack.push_back(GC<ObjectClosure>(fn));
+	call(stack.back().as_closure(), 0);
 	//frames.emplace_back(fn, fn->chunk.code.data(), 0);
 
 	return run();
 }
 
-LoxValue VM::make_LoxObject(LoxObject *obj) {
-	LoxValue res;
-	res.type = ValueType::OBJECT;
-	if (obj == nullptr) {
-		res.as.obj = new LoxObject;
-		bytes_allocated += sizeof(LoxObject);
-		if (bytes_allocated > next_GC) collect_garbage();
-	}
-	else {
-		res.as = { .obj=obj };
-	}
+template<typename T, typename... Args>
+LoxValue VM::GC(Args&&... args) {
+	static_assert(!std::is_same_v<T, ObjectString>, "Use 'get_ObjectString' to get ObjectString LoxValues");
+	bytes_allocated += sizeof(T);
+	if (bytes_allocated > next_GC) collect_garbage();
+
+	LoxValue res(new T(std::forward<Args>(args)...));
 	res.as.obj->next = objects;
 	objects = res.as.obj;
 #ifdef DEBUG_STRESS_GC
+	stack.push_back(res); // prevent immediate collection
 	collect_garbage();
+	stack.pop_back();
 #endif
 #ifdef DEBUG_LOG_GC
-	fmt::print("{} allocate {} for {}\n", (void *) res.as.obj, sizeof(LoxObject), "LoxObject");
+	fmt::print("{} allocate {} for {}\n", (void *) res.as.obj, sizeof(T), typeid(T).name());
 #endif
-	return res;	
+	return res;
 }
 
-LoxValue VM::make_ObjectString(std::string_view str) {
-	LoxValue res;
-	res.type = ValueType::OBJECT;
+// explicit instantiation
+template LoxValue VM::GC<ObjectFunction>();
+
+// Each ObjectString uniquely owns its string
+// Instead, make each LoxValue point toward a Hash Set of ObjectStrings in memory
+LoxValue VM::get_ObjectString(std::string_view str) {
 	ObjectString *interned = strings.find_string(str);
+	LoxValue res(interned);
 	if (interned == nullptr) {
-		res.as.obj = (LoxObject *) new ObjectString(str);
 		bytes_allocated += sizeof(ObjectString);
 		if (bytes_allocated > next_GC) collect_garbage();
-		strings.set((ObjectString *) res.as.obj, LoxValue());
+
+		res.as.obj = (LoxObject *) new ObjectString(str);
 		res.as.obj->next = objects;
 		objects = res.as.obj;
-	}
-	else {
-		res.as.obj = (LoxObject *) interned;
+#ifdef DEBUG_LOG_GC
+		fmt::print("{} allocate {} for {}\n", (void *) res.as.obj, sizeof(ObjectString), "ObjectString");
+#endif
+
+		strings.set((ObjectString *) res.as.obj, LoxValue());
 	}
 #ifdef DEBUG_STRESS_GC
 	stack.push_back(res); // prevent immediate collection
 	collect_garbage();
 	stack.pop_back();
-#endif
-#ifdef DEBUG_LOG_GC
-	fmt::print("{} allocate {} for {}\n", (void *) res.as.obj, sizeof(ObjectString), "ObjectString");
 #endif
 	return res;	
 }
 
-// end_compiler takes the function from the LocalState, pass it here to create
+// end_compiler takes the function from the FunctionScope, pass it here to create
 // it in the VM
-LoxValue VM::make_ObjectFunction(ObjectFunction *fn) {
-	LoxValue res;
-	res.type = ValueType::OBJECT;
-	res.as.obj = (LoxObject *) fn;
-	res.as.obj->next = objects;
-	objects = res.as.obj;
-#ifdef DEBUG_STRESS_GC
-	stack.push_back(res); // prevent immediate collection
-	collect_garbage();
-	stack.pop_back();
-#endif
-	return res;
-}
-
-LoxValue VM::make_ObjectNative(NativeFn function) {
-	LoxValue res;
-	res.type = ValueType::OBJECT;
-	res.as.obj = (LoxObject *) new ObjectNative(function);
-	bytes_allocated += sizeof(ObjectNative);
-	if (bytes_allocated > next_GC) collect_garbage();
-	res.as.obj->next = objects;
-	objects = res.as.obj;
-#ifdef DEBUG_STRESS_GC
-	stack.push_back(res); // prevent immediate collection
-	collect_garbage();
-	stack.pop_back();
-#endif
-#ifdef DEBUG_LOG_GC
-	fmt::print("{} allocate {} for {}\n", (void *) res.as.obj, sizeof(ObjectNative), "ObjectNative");
-#endif
-	return res;
-}
-
-LoxValue VM::make_ObjectClosure(ObjectClosure *closure) {
-	LoxValue res;
-	res.type = ValueType::OBJECT;
-	res.as.obj = (LoxObject *) closure;
-	res.as.obj->next = objects;
-	objects = res.as.obj;
-#ifdef DEBUG_STRESS_GC
-	stack.push_back(res); // prevent immediate collection
-	collect_garbage();
-	stack.pop_back();
-#endif
-	return res;
-}
-
-LoxValue VM::make_ObjectClass(ObjectString *str) {
-	LoxValue res;
-	res.type = ValueType::OBJECT;
-	res.as.obj = (LoxObject *) new ObjectClass(str);
-	res.as.obj->next = objects;
-	objects = res.as.obj;
-#ifdef DEBUG_STRESS_GC
-	stack.push_back(res); // prevent immediate collection
-	collect_garbage();
-	stack.pop_back();
-#endif
-#ifdef DEBUG_LOG_GC
-	fmt::print("{} allocate {} for {}\n", (void *) res.as.obj, sizeof(ObjectClass), "ObjectClass");
-#endif
-	return res;
-}
-
-LoxValue VM::make_ObjectInstance(ObjectClass *klass) {
-	LoxValue res;
-	res.type = ValueType::OBJECT;
-	res.as.obj = (LoxObject *) new ObjectInstance(klass);
-	res.as.obj->next = objects;
-	objects = res.as.obj;
-#ifdef DEBUG_STRESS_GC
-	stack.push_back(res); // prevent immediate collection
-	collect_garbage();
-	stack.pop_back();
-#endif
-#ifdef DEBUG_LOG_GC
-	fmt::print("{} allocate {} for {}\n", (void *) res.as.obj, sizeof(ObjectInstance), "ObjectInstance");
-#endif
-	return res;
-}
-
-LoxValue VM::make_ObjectBoundMethod(LoxValue receiver, ObjectClosure *method) {
-	LoxValue res;
-	res.type = ValueType::OBJECT;
-	res.as.obj = (LoxObject *) new ObjectBoundMethod(receiver, method);
-	res.as.obj->next = objects;
-	objects = res.as.obj;
-#ifdef DEBUG_STRESS_GC
-	stack.push_back(res); // prevent immediate collection
-	collect_garbage();
-	stack.pop_back();
-#endif
-#ifdef DEBUG_LOG_GC
-	fmt::print("{} allocate {} for {}\n", (void *) res.as.obj, sizeof(ObjectBoundMethod), "ObjectBoundMethod");
-#endif
-	return res;
-}
-
 
 void VM::free_LoxObject(LoxObject *object) {
 #ifdef DEBUG_LOG_GC
@@ -249,9 +145,9 @@ void VM::free_LoxObject(LoxObject *object) {
 }
 
 void VM::define_native(std::string_view name, NativeFn fn) {
-	stack.push_back(make_ObjectString(name));
-	stack.push_back(make_ObjectNative(fn));
-	globals.set(&stack[0].as.obj->as_string(), stack[1]);
+	stack.push_back(get_ObjectString(name));
+	stack.push_back(GC<ObjectNative>(fn));
+	globals.set(&stack[0].as_string(), stack[1]);
 	stack.pop_back();
 	stack.pop_back();
 }
@@ -261,14 +157,14 @@ bool is_falsey(LoxValue value) {
 }
 
 void VM::concatenate() {
-	ObjectString &b = peek().as.obj->as_string();
-	ObjectString &a = peek(1).as.obj->as_string();
+	ObjectString &b = peek().as_string();
+	ObjectString &a = peek(1).as_string();
 	int length = a.length + b.length;
 	std::unique_ptr<char[]> chars = std::make_unique_for_overwrite<char[]>(length + 1);
 	std::memcpy(chars.get(), a.chars.get(), a.length);
 	std::memcpy(chars.get() + a.length, b.chars.get(), b.length);
 	chars[length] = '\0';
-	LoxValue concat = make_ObjectString(chars.get());
+	LoxValue concat = get_ObjectString(chars.get());
 	stack.pop_back();
 	stack.pop_back();
 	stack.push_back(concat);
@@ -297,20 +193,20 @@ bool VM::call_value(LoxValue callee, int arg_count) {
 		switch(callee.as.obj->type) {
 			// cannot call ObjectFunction
 			//case ObjectType::FUNCTION: return call(callee.as.obj->as_function(), arg_count);
-			case ObjectType::CLOSURE: return call(callee.as.obj->as_closure(), arg_count);
+			case ObjectType::CLOSURE: return call(callee.as_closure(), arg_count);
 			case ObjectType::NATIVE: {
-				NativeFn native = callee.as.obj->as_native().function;
+				NativeFn native = callee.as_native().function;
 				LoxValue result = native(arg_count, &stack.back() - arg_count + 1);
 				stack.resize(stack.size() - arg_count); // get rid of args (leave first for inplace)
 				stack.back() = result;
 				return true;
 			}
 			case ObjectType::CLASS: {
-				ObjectClass &klass = callee.as.obj->as_class();
-				stack[stack.size() - 1 - arg_count] = make_ObjectInstance(&klass);
+				ObjectClass &klass = callee.as_class();
+				stack[stack.size() - 1 - arg_count] = GC<ObjectInstance>(&klass);
 				LoxValue initializer;
 				if (klass.methods.get(init_string, &initializer)) {
-					return call(initializer.as.obj->as_closure(), arg_count);
+					return call(initializer.as_closure(), arg_count);
 				}
 				else if(arg_count != 0) {
 					runtime_error("Expected 0 arguments but got {}.", arg_count);
@@ -319,7 +215,7 @@ bool VM::call_value(LoxValue callee, int arg_count) {
 				return true;
 			}
 			case ObjectType::BOUND_METHOD: {
-				ObjectBoundMethod &bound = callee.as.obj->as_bound_method();
+				ObjectBoundMethod &bound = callee.as_bound_method();
 				stack[stack.size() - 1 - arg_count] = bound.receiver;
 				return call(*bound.method, arg_count);
 			}
@@ -340,12 +236,9 @@ ObjectUpvalue *VM::capture_upvalue(LoxValue *local) {
 	if (upvalue != nullptr && upvalue->location == local) {
 		return upvalue;
 	}
-	ObjectUpvalue *created_upvalue = new ObjectUpvalue(local);
-	bytes_allocated += sizeof(ObjectUpvalue);
-	if (bytes_allocated > next_GC) collect_garbage();
-#ifdef DEBUG_LOG_GC
-	fmt::print("{} allocate {} for {}\n", (void *) created_upvalue, sizeof(ObjectUpvalue), "ObjectUpvalue");
-#endif
+	LoxValue val = GC<ObjectUpvalue>(local);
+	ObjectUpvalue *created_upvalue = &val.as_upvalue();
+
 	created_upvalue->next = upvalue;
 	if (prev_upvalue == nullptr) {
 		open_upvalues = created_upvalue;
@@ -367,7 +260,7 @@ void VM::close_upvalues(LoxValue *last) {
 
 void VM::define_method(ObjectString *name) {
 	LoxValue method = peek();
-	ObjectClass &klass = peek(1).as.obj->as_class();
+	ObjectClass &klass = peek(1).as_class();
 	klass.methods.set(name, method);
 	stack.pop_back();
 }
@@ -378,7 +271,7 @@ bool VM::bind_method(ObjectClass *klass, ObjectString *name) {
 		runtime_error("Undefined property '{}'.", name->chars.get());
 		return false;
 	}
-	LoxValue bound = make_ObjectBoundMethod(peek(), &method.as.obj->as_closure());
+	LoxValue bound = GC<ObjectBoundMethod>(peek(), &method.as_closure());
 	stack.pop_back();
 	stack.push_back(bound);
 	return true;
@@ -386,10 +279,10 @@ bool VM::bind_method(ObjectClass *klass, ObjectString *name) {
 
 bool VM::invoke(ObjectString *name, int arg_count) {
 	LoxValue receiver = peek(arg_count);
-	if (!receiver.is_object() || !receiver.as.obj->is_instance()) {
+	if (!receiver.is_instance()) {
 		return false;
 	}
-	ObjectInstance &instance = receiver.as.obj->as_instance();
+	ObjectInstance &instance = receiver.as_instance();
 	
 	// make sure it's not a field being called instead of a method
 	LoxValue value;
@@ -407,7 +300,7 @@ bool VM::invoke_from_class(ObjectClass *klass, ObjectString *name, int arg_count
 		runtime_error("Undefined property '{}'.", name->chars.get());
 		return false;
 	}
-	return call(method.as.obj->as_closure(), arg_count);
+	return call(method.as_closure(), arg_count);
 }
 
 LoxValue VM::read_constant(CallFrame *frame) {
@@ -456,7 +349,7 @@ InterpretResult VM::run() {
 			break;
 		}
 		case +OP::GET_GLOBAL: {
-			ObjectString *name = &read_constant(frame).as.obj->as_string();
+			ObjectString *name = &read_constant(frame).as_string();
 			LoxValue value;
 			if (!globals.get(name, &value)) {
 				runtime_error("Undefined variable '{}'.", name->chars.get());
@@ -466,7 +359,7 @@ InterpretResult VM::run() {
 			break;
 		}
 		case +OP::DEFINE_GLOBAL: {
-			ObjectString *name = &read_constant(frame).as.obj->as_string();
+			ObjectString *name = &read_constant(frame).as_string();
 			globals.set(name, peek());
 			stack.pop_back();
 			break;
@@ -492,12 +385,12 @@ InterpretResult VM::run() {
 			break;
 		}
 		case +OP::GET_PROPERTY: {
-			if (!peek().is_object() || !peek().as.obj->is_instance()) {
+			if (!peek().is_object() || !peek().is_instance()) {
 				runtime_error("Only instances have properties.");
 				return INTERPRET_RUNTIME_ERROR;
 			}
-			ObjectInstance &instance = peek().as.obj->as_instance();
-			ObjectString *name = &read_constant(frame).as.obj->as_string();
+			ObjectInstance &instance = peek().as_instance();
+			ObjectString *name = &read_constant(frame).as_string();
 			LoxValue val;
 			if (instance.fields.get(name, &val)) {
 				stack.pop_back(); // instance
@@ -513,20 +406,20 @@ InterpretResult VM::run() {
 			return INTERPRET_RUNTIME_ERROR;
 		}
 		case +OP::SET_PROPERTY: {
-			if (!peek(1).is_object() || !peek(1).as.obj->is_instance()) {
+			if (!peek(1).is_object() || !peek(1).is_instance()) {
 				runtime_error("Only instances have fields.");
 				return INTERPRET_RUNTIME_ERROR;
 			}
-			ObjectInstance &instance = peek(1).as.obj->as_instance();
-			instance.fields.set(&read_constant(frame).as.obj->as_string(), peek());
+			ObjectInstance &instance = peek(1).as_instance();
+			instance.fields.set(&read_constant(frame).as_string(), peek());
 			// remove the second element from the top
 			peek(1) = peek();
 			stack.pop_back();
 			break;
 		}
 		case +OP::GET_SUPER: {
-			ObjectString *name = &read_constant(frame).as.obj->as_string();
-			ObjectClass *superclass = &peek().as.obj->as_class();
+			ObjectString *name = &read_constant(frame).as_string();
+			ObjectClass *superclass = &peek().as_class();
 			stack.pop_back();
 			if (!bind_method(superclass, name)) {
 				return INTERPRET_RUNTIME_ERROR;
@@ -580,7 +473,7 @@ InterpretResult VM::run() {
 			break;
 		}
 		case +OP::ADD: {
-			if (peek().is_object() && peek().as.obj->is_string() && peek(1).is_object() && peek(1).as.obj->is_string()) {
+			if (peek().is_string() && peek(1).is_string()) {
 				concatenate();
 			}
 			else if (peek().is_number() && peek(1).is_number()) {
@@ -666,7 +559,7 @@ InterpretResult VM::run() {
 			break;
 		}
 		case +OP::INVOKE: {
-			ObjectString *method = &read_constant(frame).as.obj->as_string();
+			ObjectString *method = &read_constant(frame).as_string();
 			int arg_count = *frame->ip++;
 			if (!invoke(method, arg_count)) {
 				return INTERPRET_RUNTIME_ERROR;
@@ -675,9 +568,9 @@ InterpretResult VM::run() {
 			break;
 		}
 		case +OP::SUPER_INVOKE: {
-			ObjectString *method = &read_constant(frame).as.obj->as_string();
+			ObjectString *method = &read_constant(frame).as_string();
 			int arg_count = *frame->ip++;
-			ObjectClass *superclass = &peek().as.obj->as_class();
+			ObjectClass *superclass = &peek().as_class();
 			stack.pop_back();
 			if (!invoke_from_class(superclass, method, arg_count)) {
 				return INTERPRET_RUNTIME_ERROR;
@@ -687,12 +580,9 @@ InterpretResult VM::run() {
 		}
 		case +OP::CLOSURE: {
 			// stays alive?
-			ObjectFunction *fn = &read_constant(frame).as.obj->as_function();
-			ObjectClosure *closure = new ObjectClosure(fn);
-#ifdef DEBUG_LOG_GC
-	fmt::print("{} allocate {} for {}\n", (void *) closure, sizeof(ObjectClosure), "ObjectClosure");
-#endif
-			stack.push_back(make_ObjectClosure(closure));
+			ObjectFunction *fn = &read_constant(frame).as_function();
+			stack.push_back(GC<ObjectClosure>(fn));
+			ObjectClosure *closure = &stack.back().as_closure();
 			for (int i=0; i<closure->upvalue_count; i++) {
 				u8 is_local = *frame->ip++;
 				u8 index = *frame->ip++;
@@ -727,22 +617,22 @@ InterpretResult VM::run() {
 			break;
 		}
 		case +OP::CLASS: {
-			stack.push_back(make_ObjectClass(&read_constant(frame).as.obj->as_string()));
+			stack.push_back(GC<ObjectClass>(&read_constant(frame).as_string()));
 			break;
 		}
 		case +OP::INHERIT: {
 			LoxValue superclass = peek(1);
-			if (!superclass.is_object() || !superclass.as.obj->is_class()) {
+			if (!superclass.is_class()) {
 				runtime_error("Superclass must be a class.");
 				return INTERPRET_RUNTIME_ERROR;
 			}
-			ObjectClass &subclass = peek().as.obj->as_class();
-			subclass.methods.add_all(superclass.as.obj->as_class().methods);
+			ObjectClass &subclass = peek().as_class();
+			subclass.methods.add_all(superclass.as_class().methods);
 			stack.pop_back(); // pop subclass
 			break;
 		}
 		case +OP::METHOD: {
-			define_method(&read_constant(frame).as.obj->as_string());
+			define_method(&read_constant(frame).as_string());
 			break;
 		}
 		}
@@ -791,10 +681,10 @@ void VM::mark_roots() {
 }
 
 void VM::mark_compiler_roots() {
-	Compiler::LocalState *ls = compiler->current;
-	while (ls != nullptr) {
-		mark_object((LoxObject *) ls->function);
-		ls = ls->enclosing;
+	Compiler::FunctionScope *fs = compiler->current_fn;
+	while (fs != nullptr) {
+		mark_object((LoxObject *) fs->function);
+		fs = fs->enclosing;
 	}
 }
 
@@ -831,7 +721,7 @@ void VM::mark_table(HashTable &table) {
 void VM::remove_white(HashTable &table) {
 	for (u32 i=0; i<table.capacity; i++) {
 		Entry *entry = &table.entries[i];
-		if (entry->key != nullptr && !entry->key->obj.is_marked) {
+		if (entry->key != nullptr && !entry->key->is_marked) {
 			table.del(entry->key);
 		}
 	}
